@@ -94,8 +94,8 @@ bool SfTcpSocket::connect(u32 remote_ip, u16 remote_port, u8 dmac[6], u8 smac[6]
     {
         int id = pop_back(ctx.tx_free_stk);
         pkt_buf* pb = ctx.tx_pkt_bufs[id];
-        get_tcp_hdr(pb)->control |= SYN_FLAG;
-        get_tcp_hdr(pb)->control &= ~ACK_FLAG;
+        get_tcp_hdr(pb)->control = SYN_FLAG;
+        get_ip_hdr(pb)->len = TCP_HDR_SZ + IP_HDR_SZ;
         ef_vi_transmit(&ctx.vi, pb->dma_buf_addr, TCP_TOTAL_HDR_SZ, id);
     }
 
@@ -122,9 +122,13 @@ bool SfTcpSocket::close() {
     pkt_buf* pb = ctx.tx_pkt_bufs[id];
 
     auto* tcp = get_tcp_hdr(pb);
-    tcp->control |= FIN_FLAG | ACK_FLAG;
+    auto* ip = get_ip_hdr(pb);
+
+    tcp->control = FIN_FLAG | ACK_FLAG;
     tcp->seq_num = htonl(tcb.SND_NXT++);
     tcp->ack_num = htonl(tcb.RCV_NXT);
+
+    ip->len = IP_HDR_SZ + TCP_HDR_SZ;
 
     tcb.state = tcb.state == TcpState::ESTABLISHED ? TcpState::FIN_WAIT1 : TcpState::LAST_ACK;
 
@@ -142,9 +146,11 @@ bool SfTcpSocket::abort() {
 
     auto* tcp = get_tcp_hdr(pb);
 
-    tcp->control |= RST_FLAG;
+    tcp->control = RST_FLAG;
     tcp->seq_num = htonl(tcb.SND_NXT);
     tcp->ack_num = htonl(tcb.RCV_NXT);
+
+    get_ip_hdr(pb)->len = IP_HDR_SZ + TCP_HDR_SZ;
 
     ef_vi_transmit(&ctx.vi, pb->dma_buf_addr, TCP_TOTAL_HDR_SZ, id);
 
