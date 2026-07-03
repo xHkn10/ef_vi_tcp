@@ -25,22 +25,26 @@ bool SoupBinTcpSession::login(std::string_view username, std::string_view passwo
 
     std::array<std::byte, 49> packet{};
 
-    auto write_right_padded = [&packet](int offset, int max_len, auto& vw) {
-        std::memcpy(&packet[offset] + max_len - vw.size(), vw.data(), vw.size());
+    auto write_left_justified = [&packet](int offset, int max_len, auto& vw) {
+        std::memcpy(&packet[offset], vw.data(), vw.size());
+        std::memset(&packet[offset] + vw.size(), ' ', max_len - vw.size());
+    };
+    auto write_right_justified = [&packet](int offset, int max_len, auto& vw) {
         std::memset(&packet[offset], ' ', max_len - vw.size());
+        std::memcpy(&packet[offset] + max_len - vw.size(), vw.data(), vw.size());
     };
 
     *reinterpret_cast<u16*>(packet.data()) = htons(47);
     packet[2] = static_cast<std::byte>('L');
 
-    write_right_padded(3, 6, username);
-    write_right_padded(9, 10, password);
-    write_right_padded(19, 10, session);
-    write_right_padded(29, 20, seq);
+    write_left_justified(3, 6, username);
+    write_left_justified(9, 10, password);
+    write_right_justified(19, 10, session);
+    write_right_justified(29, 20, seq);
 
     if (sock.send(packet)) {
         state = SessionState::LoggingIn;
-        last_tx_cycles = cycle_timer::now();
+        last_tx_cycles = last_rx_cycles = cycle_timer::now();
         return true;
     }
 
@@ -68,6 +72,8 @@ void SoupBinTcpSession::handle_rx() {
     if (!cur_buf)
         return;
 
+    last_rx_cycles = cycle_timer::now();
+
     auto* cur_ptr = cur_buf->meta.payload.data();
     u32 offset = 0;
     u32 consumed_bytes = 0;
@@ -87,6 +93,7 @@ void SoupBinTcpSession::handle_rx() {
 
     int available_bytes = sgl.n_bytes;
     while (available_bytes - consumed_bytes >= 3) {
+        // TODO what if msg_len == 0? subtraction would underflow
         u32 msg_len = 0; // 16 bits actually
 
         msg_len |= static_cast<u32>(*(cur_ptr + offset)) << 8;
