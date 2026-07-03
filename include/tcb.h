@@ -148,6 +148,7 @@ private:
         else {
             rx_ready_tail->meta.nxt = rx_seg;
             rx_ready_tail = rx_seg;
+            rx_ready_tail->meta.nxt = nullptr;
         }
     }
 

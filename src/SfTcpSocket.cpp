@@ -262,7 +262,7 @@ int SfTcpSocket::receive(std::span<std::byte> spn) {
     int n_bytes_read = static_cast<int>(spn.size()) - n_bytes_left;
 
     if (cur_rx) {
-        tcb.rx_ready_head = cur_rx;
+        tcb.rx_ready_head = cur_rx, tcb.rx_ready_tail = sgl.tail;
         tcb.ready_bytes = sgl.n_bytes - n_bytes_read;
     } else
         tcb.rx_ready_head = tcb.rx_ready_tail = nullptr;
@@ -297,8 +297,7 @@ int SfTcpSocket::consume(rx_sgl sgl, int bytes_to_consume) {
     }
 
     if (cur_rx) {
-        tcb.rx_ready_head = cur_rx;
-        tcb.rx_ready_tail = sgl.tail;
+        tcb.rx_ready_head = cur_rx, tcb.rx_ready_tail = sgl.tail;
         int actual_consumed = bytes_to_consume - bytes_left;
         tcb.ready_bytes = sgl.n_bytes - actual_consumed;
     } else {
@@ -321,7 +320,7 @@ void SfTcpSocket::stamp_and_send(pkt_buf* pb, int payload_sz) {
     tcp->control = ACK_FLAG;
 
     pb->meta.tx_ref_cnt = 2;
-    pb->meta.seq = htonl(tcb.SND_NXT);
+    pb->meta.seq = tcb.SND_NXT;
     pb->meta.payload = get_tcp_payload(pb);
 
     tcb.SND_NXT += payload_sz;

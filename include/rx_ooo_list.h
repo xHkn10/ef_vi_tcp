@@ -29,7 +29,7 @@ public:
         pkt_buf* cur = head;
         while (cur->meta.nxt && *cur->meta.nxt < *new_pb)
             cur = cur->meta.nxt;
-        if (cur->meta.nxt->meta.seq == new_pb->meta.seq)
+        if (cur->meta.nxt && cur->meta.nxt->meta.seq == new_pb->meta.seq)
             return false;
         new_pb->meta.nxt = cur->meta.nxt;
         cur->meta.nxt = new_pb;
