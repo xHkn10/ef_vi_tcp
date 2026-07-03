@@ -15,14 +15,11 @@ add_executable(
         src/OuchApplication.cpp
 )
 
+target_link_libraries(ef_vi_tcp PRIVATE
+        /home/shield_test/hkn/onload/build/gnu_x86_64/lib/ciul/libciul1.a
+)
 
 target_include_directories(ef_vi_tcp PRIVATE
         include
-        ~/src/onload/src/include/etherfabric/
+        /home/shield_test/hkn/onload/src/include
 )
-
-target_link_directories(ef_vi_tcp PRIVATE
-        ~/src/onload/build/gnu_x86_64/
-)
-
-target_link_libraries(ef_vi_tcp PRIVATE ciul1)

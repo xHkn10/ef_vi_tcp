@@ -5,10 +5,12 @@
 #include <etherfabric/memreg.h>
 #include <etherfabric/pd.h>
 
+#include <net/if.h>
 #include <array>
 #include <ranges>
 #include <vector>
 #include <cstring>
+#include <span>
 
 #include "config.h"
 #include "types.h"
@@ -52,7 +54,8 @@ struct ef_struct {
             return rc;
         }
 
-        if (int rc = ef_pd_alloc(&pd, dh, -1, EF_PD_DEFAULT); rc < 0) {
+        int ifindex = if_nametoindex("enp1s0f0");
+        if (int rc = ef_pd_alloc(&pd, dh, ifindex, EF_PD_DEFAULT); rc < 0) {
             fprintf(stderr, "ef_pd_alloc: %s\n", strerror(-rc));
             return rc;
         }

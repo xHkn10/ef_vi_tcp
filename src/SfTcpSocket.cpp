@@ -479,5 +479,6 @@ void SfTcpSocket::retransmit_head() {
 SfTcpSocket::~SfTcpSocket() {
     if (tcb.state != TcpState::CLOSED)
         abort();
+    ctx.teardown();
     tcb.state = TcpState::CLOSED;
 }
