@@ -406,7 +406,12 @@ void SfTcpSocket::poll_once() {
     int n_events = ef_eventq_poll(&ctx.vi, events, POLL_BATCH_SZ);
     for (auto& event : events | std::views::take(n_events)) {
         switch (EF_EVENT_TYPE(event)) {
-            case EF_EVENT_TYPE_RX_DISCARD:
+            case EF_EVENT_TYPE_RX_DISCARD: {
+                int id = EF_EVENT_RX_RQ_ID(event);
+                ctx.rx_free_stk.push_back(id);
+                std::puts("poll_once: EF_EVENT_TYPE_RX_DISCARD\n");
+                break;
+            }
             case EF_EVENT_TYPE_RX: {
                 int id = EF_EVENT_RX_RQ_ID(event);
                 pkt_buf* pb = ctx.rx_pkt_bufs[id];
