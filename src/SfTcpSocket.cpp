@@ -437,7 +437,8 @@ void SfTcpSocket::poll_once() {
                     ctx.rx_free_stk.push_back(id);
                 else {
                     pb->meta = {payload, nullptr, ntohl(tcp->seq_num)};
-                    tcb.rx_out_of_order.insert(pb);
+                    if (!tcb.rx_out_of_order.insert(pb))
+                        ctx.rx_free_stk.push_back(id);
                 }
                 break;
             }

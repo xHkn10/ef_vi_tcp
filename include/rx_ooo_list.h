@@ -20,19 +20,20 @@ public:
         return ret;
     }
 
-    void insert(pkt_buf* new_pb) {
+    bool insert(pkt_buf* new_pb) {
         if (!head || *new_pb < *head) {
             new_pb->meta.nxt = head;
             head = new_pb;
-            return;
+            return true;
         }
         pkt_buf* cur = head;
-        while (cur->meta.nxt && *cur < *new_pb)
+        while (cur->meta.nxt && *cur->meta.nxt < *new_pb)
             cur = cur->meta.nxt;
-        if (cur->meta.seq == new_pb->meta.seq)
-            return;
+        if (cur->meta.nxt->meta.seq == new_pb->meta.seq)
+            return false;
         new_pb->meta.nxt = cur->meta.nxt;
         cur->meta.nxt = new_pb;
+        return true;
     }
 
 private:
