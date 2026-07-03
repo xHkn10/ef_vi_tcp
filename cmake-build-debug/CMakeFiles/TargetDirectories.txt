@@ -1,3 +1,0 @@
-/home/xhkn/Projects/CProjects/ef_vi_tcp/cmake-build-debug/CMakeFiles/ef_vi_tcp.dir
-/home/xhkn/Projects/CProjects/ef_vi_tcp/cmake-build-debug/CMakeFiles/edit_cache.dir
-/home/xhkn/Projects/CProjects/ef_vi_tcp/cmake-build-debug/CMakeFiles/rebuild_cache.dir
