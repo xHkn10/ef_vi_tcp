@@ -95,6 +95,7 @@ bool SfTcpSocket::connect(u32 remote_ip, u16 remote_port, u8 dmac[6], u8 smac[6]
     {
         int id = pop_back(ctx.tx_free_stk);
         pkt_buf* pb = ctx.tx_pkt_bufs[id];
+        pb->meta.tx_ref_cnt = 1;
         get_tcp_hdr(pb)->control = SYN_FLAG;
         get_ip_hdr(pb)->len = htons(TCP_HDR_SZ + IP_HDR_SZ);
         ef_vi_transmit(&ctx.vi, pb->dma_buf_addr, TCP_TOTAL_HDR_SZ, id);
@@ -122,6 +123,8 @@ bool SfTcpSocket::close() {
     int id = pop_back(ctx.tx_free_stk);
     pkt_buf* pb = ctx.tx_pkt_bufs[id];
 
+    pb->meta.tx_ref_cnt = 1;
+
     auto* tcp = get_tcp_hdr(pb);
     auto* ip = get_ip_hdr(pb);
 
@@ -143,7 +146,10 @@ bool SfTcpSocket::abort() {
     if (ctx.tx_free_stk.empty() || ef_vi_transmit_space(&ctx.vi) == 0)
         return false;
     int id = pop_back(ctx.tx_free_stk);
+
     pkt_buf* pb = ctx.tx_pkt_bufs[id];
+
+    pb->meta.tx_ref_cnt = 1;
 
     auto* tcp = get_tcp_hdr(pb);
 
@@ -400,6 +406,7 @@ void SfTcpSocket::poll_once() {
     int n_events = ef_eventq_poll(&ctx.vi, events, POLL_BATCH_SZ);
     for (auto& event : events | std::views::take(n_events)) {
         switch (EF_EVENT_TYPE(event)) {
+            case EF_EVENT_TYPE_RX_DISCARD:
             case EF_EVENT_TYPE_RX: {
                 int id = EF_EVENT_RX_RQ_ID(event);
                 pkt_buf* pb = ctx.rx_pkt_bufs[id];

@@ -12,8 +12,10 @@ struct rx_sgl {
     void append(pkt_buf* seg) {
         if (!tail)
             head = tail = seg;
-        else
+        else {
             tail->meta.nxt = seg;
+            tail = seg;
+        }
     }
 };
 

@@ -69,6 +69,7 @@ struct TCB {
             rx_ready_head = rx_ready_tail = nullptr;
         else
             rx_ready_head = rx_ready_head->meta.nxt;
+        ready_bytes -= ret->meta.payload.size();
         return ret;
     }
 
@@ -96,6 +97,7 @@ struct TCB {
 
                 rx_out_of_order.pop_front();
             } else if (seq_less(rx_seg->meta.seq, RCV_NXT)) { // TODO what if chunk of the data partially overlaps?
+                immediate_ack_req = true;
                 rx_free_stk.push_back(rx_seg->id);
                 rx_out_of_order.pop_front();
             }
