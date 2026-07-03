@@ -40,7 +40,7 @@ SfTcpSocket::SfTcpSocket() {
         pb->meta = {{pb->dma_buf + TCP_TOTAL_HDR_SZ, TCP_MAX_PAYLOAD_SZ}, nullptr, 0, 2};
     }
 
-    CycleTimer::calibrate();
+    cycle_timer::calibrate();
 }
 
 bool SfTcpSocket::bind(u32 local_ip, u16 local_port) {
@@ -100,9 +100,9 @@ bool SfTcpSocket::connect(u32 remote_ip, u16 remote_port, u8 dmac[6], u8 smac[6]
     }
 
     // spin until poll_once transitions out of SYN_SENT (to ESTABLISHED, ideally)
-    const auto deadline = CycleTimer::now() + CycleTimer::cycles_per_ms * CONNECT_TIMEOUT_MILLISECONDS;
+    const auto deadline = cycle_timer::now() + cycle_timer::cycles_per_ms * CONNECT_TIMEOUT_MILLISECONDS;
     for (int spins = 0; tcb.state == TcpState::SYN_SENT; ++spins) {
-        if ((spins & 0xFF) == 0 && CycleTimer::now() > deadline) {
+        if ((spins & 0xFF) == 0 && cycle_timer::now() > deadline) {
             std::puts("Connection timeout\n");
             return false;
         }
@@ -320,7 +320,7 @@ void SfTcpSocket::stamp_and_send(pkt_buf* pb, int payload_sz) {
     pb->meta.tx_ref_cnt = 2;
     tcb.tx_unacked.push_back(pb);
     if (tcb.tx_unacked.size() == 1)
-        tcb.rto_deadline_cycles = CycleTimer::now() + CycleTimer::cycles_per_ms * RTO_MILLISECONDS;
+        tcb.rto_deadline_cycles = cycle_timer::now() + cycle_timer::cycles_per_ms * RTO_MILLISECONDS;
 
     if constexpr (queue)
         ef_vi_transmit_init(&ctx.vi, pb->dma_buf_addr, TCP_TOTAL_HDR_SZ + payload_sz, pb->id);
@@ -452,10 +452,10 @@ void SfTcpSocket::poll_once() {
 
     tcb.process(ctx.rx_free_stk);
 
-    if (tcb.immediate_ack_req || (tcb.need_ack && CycleTimer::now() >= tcb.ack_deadline_cycles))
+    if (tcb.immediate_ack_req || (tcb.need_ack && cycle_timer::now() >= tcb.ack_deadline_cycles))
         send_pure_ack();
 
-    if (!tcb.tx_unacked.empty() && CycleTimer::now() > tcb.rto_deadline_cycles)
+    if (!tcb.tx_unacked.empty() && cycle_timer::now() > tcb.rto_deadline_cycles)
         retransmit_head();
 
     refill_rx_ring();
@@ -473,7 +473,7 @@ void SfTcpSocket::retransmit_head() {
 
     ef_vi_transmit(&ctx.vi, pb->dma_buf_addr, TCP_TOTAL_HDR_SZ + pb->meta.payload.size(), pb->id);
 
-    tcb.rto_deadline_cycles = CycleTimer::now() + CycleTimer::cycles_per_ms * RTO_MILLISECONDS;
+    tcb.rto_deadline_cycles = cycle_timer::now() + cycle_timer::cycles_per_ms * RTO_MILLISECONDS;
 }
 
 SfTcpSocket::~SfTcpSocket() {

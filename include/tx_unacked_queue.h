@@ -3,7 +3,7 @@
 
 #include "ef_vi_stuff.h"
 
-class TxUnackedQueue {
+class tx_unacked_queue {
 public:
     pkt_buf* pop_front() {
         if (sz == 0)

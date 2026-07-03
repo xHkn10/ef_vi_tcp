@@ -5,7 +5,7 @@
 #include "x86intrin.h"
 #include "types.h"
 
-struct CycleTimer {
+struct cycle_timer {
     inline static u64 ack_timeout_cycles = 0; // 100ms
     inline static u64 cycles_per_ms = 0;
 

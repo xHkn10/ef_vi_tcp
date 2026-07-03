@@ -2,7 +2,7 @@
 
 #include "ef_vi_stuff.h"
 
-class RxOooList {
+class rx_ooo_list {
 public:
     [[nodiscard]] bool empty() const {
         return head == nullptr;

@@ -1,10 +1,10 @@
 #pragma once
 
-#include "CycleTimer.h"
+#include "cycle_timer.h"
 #include "net_headers.h"
-#include "RxOooList.h"
+#include "rx_ooo_list.h"
 #include "sgl.h"
-#include "TxUnackedQueue.h"
+#include "tx_unacked_queue.h"
 #include "types.h"
 
 enum class TcpState : u32 {
@@ -32,8 +32,8 @@ struct TCB {
     pkt_buf* rx_ready_tail;
     int ready_bytes;
 
-    RxOooList rx_out_of_order;
-    TxUnackedQueue tx_unacked;
+    rx_ooo_list rx_out_of_order;
+    tx_unacked_queue tx_unacked;
 
     TcpState state;
 
@@ -127,7 +127,7 @@ struct TCB {
             if (tx_unacked.empty())
                 rto_deadline_cycles = 0;
             else
-                rto_deadline_cycles = CycleTimer::now() + CycleTimer::cycles_per_ms * RTO_MILLISECONDS;
+                rto_deadline_cycles = cycle_timer::now() + cycle_timer::cycles_per_ms * RTO_MILLISECONDS;
         }
 
         // our FIN might be acknowledged
@@ -173,7 +173,7 @@ private:
     void queue_ack() {
         if (!need_ack) {
             need_ack = true;
-            ack_deadline_cycles = CycleTimer::now() + CycleTimer::cycles_per_ms * 100;
+            ack_deadline_cycles = cycle_timer::now() + cycle_timer::cycles_per_ms * 100;
         }
     }
 };

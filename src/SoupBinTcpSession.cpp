@@ -40,7 +40,7 @@ bool SoupBinTcpSession::login(std::string_view username, std::string_view passwo
 
     if (sock.send(packet)) {
         state = SessionState::LoggingIn;
-        last_tx_cycles = CycleTimer::now();
+        last_tx_cycles = cycle_timer::now();
         return true;
     }
 
@@ -139,7 +139,7 @@ bool SoupBinTcpSession::send_unsequenced(std::span<std::byte> ouch_payload) {
     std::memcpy(packet.data() + 3, ouch_payload.data(), ouch_payload.size());
 
     if (sock.send(std::span{packet}.first(total_len))) {
-        last_tx_cycles = CycleTimer::now();
+        last_tx_cycles = cycle_timer::now();
         return true;
     }
     return false;
@@ -154,12 +154,12 @@ void SoupBinTcpSession::check_timers() {
     if (state != SessionState::Active && state != SessionState::LoggingIn)
         return;
 
-    u64 tx_elapsed_cycles = CycleTimer::now() - last_tx_cycles;
-    if (tx_elapsed_cycles >= HEARTBEAT_MS * CycleTimer::cycles_per_ms)
+    u64 tx_elapsed_cycles = cycle_timer::now() - last_tx_cycles;
+    if (tx_elapsed_cycles >= HEARTBEAT_MS * cycle_timer::cycles_per_ms)
         send_heartbeat();
 
-    u64 rx_elapsed_cycles = CycleTimer::now() - last_rx_cycles;
-    if (rx_elapsed_cycles >= RX_TIMEOUT_MS * CycleTimer::cycles_per_ms) {
+    u64 rx_elapsed_cycles = cycle_timer::now() - last_rx_cycles;
+    if (rx_elapsed_cycles >= RX_TIMEOUT_MS * cycle_timer::cycles_per_ms) {
         std::puts("[TIMEOUT] Server stopped responding. Connection lost.\n");
         state = SessionState::Disconnected;
         sock.abort();
@@ -173,7 +173,7 @@ bool SoupBinTcpSession::send_heartbeat() {
     heartbeat[2] = static_cast<std::byte>('R');
 
     if (sock.send(heartbeat)) {
-        last_tx_cycles = CycleTimer::now();
+        last_tx_cycles = cycle_timer::now();
         return true;
     }
     return false;
