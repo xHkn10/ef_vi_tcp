@@ -13,12 +13,12 @@ int main() {
 
     SfTcpSocket sock{};
 
-    u32 local_ip = inet_addr("172.16.10.10");
+    u32 local_ip = inet_addr("10.10.10.1");
     u16 local_port = 50000;
     u32 remote_ip = inet_addr("172.16.10.35");
     u16 remote_port = 12345;
     // 10:7b:44:92:90:ca
-    u8 smac[6] = {0x00, 0x0F, 0x53, 0x00, 0x00, 0x01};
+    u8 smac[6] = {0x00, 0x0f, 0x53, 0xa3, 0xea, 0x40};
     u8 dmac[6] = {0x10, 0x7b, 0x44, 0x92, 0x90, 0xca};
 
     sock.bind(ntohl(local_ip), local_port);

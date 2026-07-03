@@ -16,10 +16,10 @@ add_executable(
 )
 
 target_link_libraries(ef_vi_tcp PRIVATE
-        /home/shield_test/hkn/onload/build/gnu_x86_64/lib/ciul/libciul1.a
+        $ENV{HOME}/src/onload/build/gnu_x86_64/lib/ciul/libciul1.a
 )
 
 target_include_directories(ef_vi_tcp PRIVATE
         include
-        /home/shield_test/hkn/onload/src/include
+        $ENV{HOME}/src/onload/src/include
 )
