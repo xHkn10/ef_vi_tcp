@@ -99,8 +99,10 @@ struct TCB {
                 rx_free_stk.push_back(rx_seg->id);
                 rx_out_of_order.pop_front();
             }
-            else
+            else {
                 immediate_ack_req = true;
+                break;
+            }
         }
     }
 
