@@ -21,13 +21,13 @@ public:
     }
 
     void insert(pkt_buf* new_pb) {
-        if (!head || new_pb < head) {
+        if (!head || *new_pb < *head) {
             new_pb->meta.nxt = head;
             head = new_pb;
             return;
         }
         pkt_buf* cur = head;
-        while (cur->meta.nxt && cur < new_pb)
+        while (cur->meta.nxt && *cur < *new_pb)
             cur = cur->meta.nxt;
         if (cur->meta.seq == new_pb->meta.seq)
             return;

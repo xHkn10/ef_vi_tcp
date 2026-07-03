@@ -47,12 +47,12 @@ bool SfTcpSocket::bind(u32 local_ip, u16 local_port) {
     ef_filter_spec filter_spec;
     ef_filter_spec_init(&filter_spec, EF_FILTER_FLAG_NONE);
 
-    if (int rc = ef_filter_spec_set_ip4_local(&filter_spec, IPPROTO_TCP, local_ip, local_port) < 0) {
+    if (int rc = ef_filter_spec_set_ip4_local(&filter_spec, IPPROTO_TCP, local_ip, local_port); rc < 0) {
         fprintf(stderr, "ef_filter_spec_set_ip4_local: %s\n", strerror(-rc));
         return false;
     }
 
-    if (int rc = ef_vi_filter_add(&ctx.vi, ctx.dh, &filter_spec, nullptr) < 0) {
+    if (int rc = ef_vi_filter_add(&ctx.vi, ctx.dh, &filter_spec, nullptr); rc < 0) {
         fprintf(stderr, "ef_vi_filter_add: %s\n", strerror(-rc));
         return false;
     }
@@ -244,23 +244,21 @@ int SfTcpSocket::receive(std::span<std::byte> spn) {
             std::memcpy(spn.last(n_bytes_left).data(), cur_rx->meta.payload.data(), cur_rx->meta.payload.size());
             n_bytes_left -= cur_rx->meta.payload.size();
             ctx.rx_free_stk.push_back(cur_rx->id);
+            cur_rx = cur_rx->meta.nxt;
         } else {
             std::memcpy(spn.last(n_bytes_left).data(), cur_rx->meta.payload.data(), n_bytes_left);
             cur_rx->meta.payload = cur_rx->meta.payload.subspan(n_bytes_left);
             n_bytes_left = 0;
         }
-        cur_rx = cur_rx->meta.nxt;
     }
 
     int n_bytes_read = static_cast<int>(spn.size()) - n_bytes_left;
+    tcb.ready_bytes -= n_bytes_read;
 
-    if (cur_rx) {
+    if (cur_rx)
         tcb.rx_ready_head = cur_rx;
-        tcb.ready_bytes -= n_bytes_read;
-    } else {
+    else
         tcb.rx_ready_head = tcb.rx_ready_tail = nullptr;
-        tcb.ready_bytes = 0;
-    }
 
     return n_bytes_read;
 }
@@ -313,11 +311,13 @@ void SfTcpSocket::stamp_and_send(pkt_buf* pb, int payload_sz) {
     tcp_hdr* tcp = get_tcp_hdr(pb);
     tcp->seq_num = htonl(tcb.SND_NXT);
     tcp->ack_num = htonl(tcb.RCV_NXT);
-    tcp->control |= ACK_FLAG;
+    tcp->control = ACK_FLAG;
     tcb.SND_NXT += payload_sz;
     tcb.need_ack = tcb.immediate_ack_req = false;
 
     pb->meta.tx_ref_cnt = 2;
+    pb->meta.seq = htonl(tcb.SND_NXT);
+    pb->meta.payload = get_tcp_payload(pb);
     tcb.tx_unacked.push_back(pb);
     if (tcb.tx_unacked.size() == 1)
         tcb.rto_deadline_cycles = cycle_timer::now() + cycle_timer::cycles_per_ms * RTO_MILLISECONDS;

@@ -50,7 +50,7 @@ bool SoupBinTcpSession::login(std::string_view username, std::string_view passwo
 bool SoupBinTcpSession::logout() {
     std::array<std::byte, 3> logout_packet{};
     *reinterpret_cast<u16*>(logout_packet.data()) = htons(1);
-    logout_packet[3] = static_cast<std::byte>('O');
+    logout_packet[2] = static_cast<std::byte>('O');
 
     if (sock.send(logout_packet)) {
         state = SessionState::Disconnected;
