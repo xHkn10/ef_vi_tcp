@@ -126,8 +126,7 @@ void SoupBinTcpSession::handle_rx() {
         }
     }
 
-    if (consumed_bytes > 0)
-        sock.consume(sgl, static_cast<int>(consumed_bytes));
+    sock.consume(sgl, static_cast<int>(consumed_bytes));
 }
 
 bool SoupBinTcpSession::send_unsequenced(std::span<std::byte> ouch_payload) {
