@@ -260,11 +260,11 @@ int SfTcpSocket::receive(std::span<std::byte> spn) {
     }
 
     int n_bytes_read = static_cast<int>(spn.size()) - n_bytes_left;
-    tcb.ready_bytes -= n_bytes_read;
 
-    if (cur_rx)
+    if (cur_rx) {
         tcb.rx_ready_head = cur_rx;
-    else
+        tcb.ready_bytes = sgl.n_bytes - n_bytes_read;
+    } else
         tcb.rx_ready_head = tcb.rx_ready_tail = nullptr;
 
     return n_bytes_read;
