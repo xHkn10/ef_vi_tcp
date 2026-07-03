@@ -319,12 +319,14 @@ void SfTcpSocket::stamp_and_send(pkt_buf* pb, int payload_sz) {
     tcp->seq_num = htonl(tcb.SND_NXT);
     tcp->ack_num = htonl(tcb.RCV_NXT);
     tcp->control = ACK_FLAG;
-    tcb.SND_NXT += payload_sz;
-    tcb.need_ack = tcb.immediate_ack_req = false;
 
     pb->meta.tx_ref_cnt = 2;
     pb->meta.seq = htonl(tcb.SND_NXT);
     pb->meta.payload = get_tcp_payload(pb);
+
+    tcb.SND_NXT += payload_sz;
+    tcb.need_ack = tcb.immediate_ack_req = false;
+
     tcb.tx_unacked.push_back(pb);
     if (tcb.tx_unacked.size() == 1)
         tcb.rto_deadline_cycles = cycle_timer::now() + cycle_timer::cycles_per_ms * RTO_MILLISECONDS;
