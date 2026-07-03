@@ -47,7 +47,8 @@ bool SfTcpSocket::bind(u32 local_ip, u16 local_port) {
     ef_filter_spec filter_spec;
     ef_filter_spec_init(&filter_spec, EF_FILTER_FLAG_NONE);
 
-    if (int rc = ef_filter_spec_set_ip4_local(&filter_spec, IPPROTO_TCP, local_ip, local_port); rc < 0) {
+    // ef_filter_spec_set_ip4_local expects in network order
+    if (int rc = ef_filter_spec_set_ip4_local(&filter_spec, IPPROTO_TCP, htonl(local_ip), htons(local_port)); rc < 0) {
         fprintf(stderr, "ef_filter_spec_set_ip4_local: %s\n", strerror(-rc));
         return false;
     }
@@ -95,7 +96,7 @@ bool SfTcpSocket::connect(u32 remote_ip, u16 remote_port, u8 dmac[6], u8 smac[6]
         int id = pop_back(ctx.tx_free_stk);
         pkt_buf* pb = ctx.tx_pkt_bufs[id];
         get_tcp_hdr(pb)->control = SYN_FLAG;
-        get_ip_hdr(pb)->len = TCP_HDR_SZ + IP_HDR_SZ;
+        get_ip_hdr(pb)->len = htons(TCP_HDR_SZ + IP_HDR_SZ);
         ef_vi_transmit(&ctx.vi, pb->dma_buf_addr, TCP_TOTAL_HDR_SZ, id);
     }
 
@@ -128,7 +129,7 @@ bool SfTcpSocket::close() {
     tcp->seq_num = htonl(tcb.SND_NXT++);
     tcp->ack_num = htonl(tcb.RCV_NXT);
 
-    ip->len = IP_HDR_SZ + TCP_HDR_SZ;
+    ip->len = htons(IP_HDR_SZ + TCP_HDR_SZ);
 
     tcb.state = tcb.state == TcpState::ESTABLISHED ? TcpState::FIN_WAIT1 : TcpState::LAST_ACK;
 
@@ -150,7 +151,7 @@ bool SfTcpSocket::abort() {
     tcp->seq_num = htonl(tcb.SND_NXT);
     tcp->ack_num = htonl(tcb.RCV_NXT);
 
-    get_ip_hdr(pb)->len = IP_HDR_SZ + TCP_HDR_SZ;
+    get_ip_hdr(pb)->len = htons(IP_HDR_SZ + TCP_HDR_SZ);
 
     ef_vi_transmit(&ctx.vi, pb->dma_buf_addr, TCP_TOTAL_HDR_SZ, id);
 
