@@ -6,6 +6,14 @@
 constexpr int HEARTBEAT_MS = 1000;
 constexpr int RX_TIMEOUT_MS = 15000;
 
+constexpr char LOGIN_ACCEPTED = 'A';
+constexpr char LOGIN_REJECTED = 'J';
+constexpr char HEARTBEAT = 'H';
+constexpr char END_OF_SESSION = 'Z';
+constexpr char SEQUENCED_DATA = 'S';
+constexpr char UNSEQUENCED_DATA = 'U';
+
+
 enum class SessionState {
     Disconnected,
     LoggingIn,

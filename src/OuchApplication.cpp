@@ -15,6 +15,29 @@ bool OuchApplication::cancel_order(std::string_view token) {
     return true;
 }
 
+void OuchApplication::on_message(char msg_type, std::span<std::byte> payload) {
+    switch (msg_type) {
+        case ORDER_ACCEPTED: {
+            
+            break;
+        }
+        case ORDER_EXECUTED: {
+
+            break;
+        }
+        case ORDER_REJECTED: {
+
+            break;
+        }
+        case CANCEL_ACCEPTED: {
+
+            break;
+        }
+        default:
+            std::printf("Unkown ouch msg type: %c\n", msg_type);
+    }
+}
+
 void OuchApplication::on_order_accepted(ouch_order_accepted &msg) {
 
 }
@@ -39,9 +62,6 @@ void OuchApplication::on_login_rejected(char reject_reason_code) {
 
 }
 
-void OuchApplication::on_message(char msg_type, std::span<std::byte> payload) {
-
-}
 
 void OuchApplication::on_login_accepted(std::array<char, 10> session, u64 seq_num) {
 

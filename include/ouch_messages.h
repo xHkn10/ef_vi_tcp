@@ -2,6 +2,14 @@
 
 #include "types.h"
 
+constexpr char ENTER_ORDER = 'O';
+constexpr char CANCEL_ORDER = 'X';
+
+constexpr char ORDER_ACCEPTED = 'A';
+constexpr char ORDER_REJECTED = 'J';
+constexpr char ORDER_EXECUTED = 'E';
+constexpr char CANCEL_ACCEPTED = 'C';
+
 struct ouch_enter_order {
     char msg_type; // 'O'
     char order_token[14];

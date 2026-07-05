@@ -130,7 +130,7 @@ void SoupBinTcpSession::handle_rx() {
         }
 
         switch (soupbintcp_msg_type) {
-            case 'A': {
+            case LOGIN_ACCEPTED: {
                 state = SessionState::Active;
                 fragmented_memcpy(reinterpret_cast<std::byte*>(session.data()), 10);
                 int skipped_bytes = 0;
@@ -144,7 +144,7 @@ void SoupBinTcpSession::handle_rx() {
                 app.on_login_accepted(session, seq_num);
                 break;
             }
-            case 'J': {
+            case LOGIN_REJECTED: {
                 state = SessionState::Disconnected;
                 char rej_reason = static_cast<char>(*(cur_ptr + offset));
                 std::printf("Reject reason: %c\n", rej_reason);
@@ -152,14 +152,14 @@ void SoupBinTcpSession::handle_rx() {
                 app.on_login_rejected(rej_reason);
                 break;
             }
-            case 'H':
+            case HEARTBEAT:
                 break;
-            case 'Z': {
+            case END_OF_SESSION: {
                 state = SessionState::Disconnected;
                 app.on_end_of_session();
                 break;
             }
-            case 'S': {
+            case SEQUENCED_DATA: {
                 char ouch_msg_type = static_cast<char>(*(cur_ptr + offset));
                 advance(1);
 
@@ -192,7 +192,7 @@ bool SoupBinTcpSession::send_unsequenced(std::span<std::byte> ouch_payload) {
     u32 total_len = msg_len + 2;
     std::array<std::byte, 256> packet{};
     *reinterpret_cast<u16*>(packet.data()) = htons(msg_len);
-    packet[2] = static_cast<std::byte>('U');
+    packet[2] = static_cast<std::byte>(UNSEQUENCED_DATA);
     std::memcpy(packet.data() + 3, ouch_payload.data(), ouch_payload.size());
 
     if (sock.send(std::span{packet}.first(total_len))) {
