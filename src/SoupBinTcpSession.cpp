@@ -142,7 +142,7 @@ void SoupBinTcpSession::handle_rx() {
         switch (soupbintcp_msg_type) {
             case LOGIN_ACCEPTED: {
                 if (soupbintcp_len != 31) {
-                    std::printf("Expected soupbintcp len 31 for LOGIN ACCEPTED, received %u", soupbintcp_len);
+                    std::printf("Expected soupbintcp len 31 for LOGIN ACCEPTED, received %u\n", soupbintcp_len);
                     logout(); // TODO should I do fragment_aware_advance(soupbintcp_len - 1) instead?
                     break;
                 }
@@ -162,7 +162,7 @@ void SoupBinTcpSession::handle_rx() {
             }
             case LOGIN_REJECTED: {
                 if (soupbintcp_len != 2) {
-                    std::printf("Expected soupbintcp len 2 for LOGIN REJECTED, received %u", soupbintcp_len);
+                    std::printf("Expected soupbintcp len 2 for LOGIN REJECTED, received %u\n", soupbintcp_len);
                     logout(); // TODO should I do fragment_aware_advance(soupbintcp_len - 1) instead?
                     break;
                 }
@@ -177,14 +177,14 @@ void SoupBinTcpSession::handle_rx() {
             }
             case HEARTBEAT: {
                 if (soupbintcp_len != 1) {
-                    std::printf("Expected soupbintcp len 1 for HEARTBEAT, received %u", soupbintcp_len);
+                    std::printf("Expected soupbintcp len 1 for HEARTBEAT, received %u\n", soupbintcp_len);
                     logout(); // TODO should I do fragment_aware_advance(soupbintcp_len - 1) instead?
                 }
                 break;
             }
             case END_OF_SESSION: {
                 if (soupbintcp_len != 1) {
-                    std::printf("Expected soupbintcp len 1 for END OF SESSION, received %u", soupbintcp_len);
+                    std::printf("Expected soupbintcp len 1 for END OF SESSION, received %u\n", soupbintcp_len);
                     logout(); // TODO should I do fragment_aware_advance(soupbintcp_len - 1) instead?
                     break;
                 }
