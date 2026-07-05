@@ -91,45 +91,88 @@ void SoupBinTcpSession::handle_rx() {
         }
     };
 
+    auto fragmented_memcpy = [&](std::byte* dst, u32 n_bytes) {
+        u32 dst_offset = 0;
+        while (n_bytes > 0) {
+            u32 chunk_sz = std::min<u32>(n_bytes, cur_buf->meta.payload.size() - offset);
+            std::memcpy(dst + dst_offset, cur_ptr + offset, chunk_sz);
+
+            n_bytes -= chunk_sz;
+            dst_offset += chunk_sz;
+
+            advance(chunk_sz);
+        }
+    };
+
     int available_bytes = sgl.n_bytes;
     while (available_bytes - consumed_bytes >= 3) {
         // TODO what if msg_len == 0? subtraction would underflow
-        u32 msg_len = 0; // 16 bits actually
+        u32 soupbintcp_len = 0; // 16 bits actually
 
-        msg_len |= static_cast<u32>(*(cur_ptr + offset)) << 8;
+        soupbintcp_len |= static_cast<u32>(*(cur_ptr + offset)) << 8;
         advance(1);
 
-        msg_len |= static_cast<u32>(*(cur_ptr + offset));
+        soupbintcp_len |= static_cast<u32>(*(cur_ptr + offset));
         advance(1);
 
-        char msg_type = static_cast<char>(*(cur_ptr + offset));
+        char soupbintcp_msg_type = static_cast<char>(*(cur_ptr + offset));
         advance(1);
 
-        if (available_bytes - consumed_bytes < msg_len - 1) {
+        if (available_bytes - consumed_bytes < soupbintcp_len - 1) {
             consumed_bytes -= 3;
             break;
         }
 
-        int payload_len = static_cast<int>(msg_len) - 1;
-
-        if (offset + payload_len <= cur_buf->meta.payload.size()) {
-            app.on_message(msg_type, {cur_ptr + offset, msg_len - 1});
-            advance(payload_len);
-        } else {
-            int bytes_remaining = payload_len;
-
-            while (bytes_remaining > 0) {
-                int chunk_sz = std::min(bytes_remaining, static_cast<int>(cur_buf->meta.payload.size() - offset));
-                std::memcpy(fragment_buffer + fragment_buffer_sz, cur_ptr + offset, chunk_sz);
-
-                bytes_remaining -= chunk_sz;
-                fragment_buffer_sz += chunk_sz;
-
-                advance(chunk_sz);
+        switch (soupbintcp_msg_type) {
+            case 'A': {
+                state = SessionState::Active;
+                fragmented_memcpy(reinterpret_cast<std::byte*>(session.data()), 10);
+                int skipped_bytes = 0;
+                while (skipped_bytes < 20 && static_cast<char>(*(cur_ptr + offset)) == ' ') {
+                    ++skipped_bytes;
+                    advance(1);
+                }
+                char seq_num_bytes[21]{};
+                fragmented_memcpy(reinterpret_cast<std::byte*>(seq_num_bytes), 20 - skipped_bytes);
+                seq_num = strtoll(seq_num_bytes, nullptr, 10);
+                break;
             }
+            case 'J': {
+                state = SessionState::Disconnected;
+                char rej_reason = static_cast<char>(*(cur_ptr + offset));
+                std::printf("Reject reason: %c\n", rej_reason);
+                advance(1);
+                app.on_login_rejected(rej_reason);
+                break;
+            }
+            case 'H':
+                break;
+            case 'Z': {
+                state = SessionState::Disconnected;
+                break;
+            }
+            case 'S': {
+                char ouch_msg_type = static_cast<char>(*(cur_ptr + offset));
+                advance(1);
 
-            app.on_message(msg_type, {fragment_buffer, static_cast<u32>(fragment_buffer_sz)});
-            fragment_buffer_sz = 0;
+                u32 ouch_payload_len = soupbintcp_len - 2;
+
+                if (offset + ouch_payload_len <= cur_buf->meta.payload.size()) {
+                    app.on_message(ouch_msg_type, {cur_ptr + offset, ouch_payload_len});
+                    advance(ouch_payload_len);
+                } else {
+                    fragmented_memcpy(fragment_buffer, ouch_payload_len);
+                    app.on_message(ouch_msg_type, {fragment_buffer, ouch_payload_len});
+                }
+
+                ++seq_num;
+                break;
+            }
+            default: {
+                std::puts("Unknown soupbintcp msg type\n");
+                advance(soupbintcp_len - 1);
+                break;
+            }
         }
     }
 

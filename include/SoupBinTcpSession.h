@@ -38,9 +38,11 @@ private:
     SessionState state = SessionState::Disconnected;
 
     std::byte fragment_buffer[65536]{};
-    int fragment_buffer_sz = 0;
 
     u64 last_rx_cycles = 0;
     u64 last_tx_cycles = 0;
+
+    std::string session{};
+    u64 seq_num = 0;
 };
 
