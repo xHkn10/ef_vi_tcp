@@ -106,7 +106,6 @@ void SoupBinTcpSession::handle_rx() {
 
     int available_bytes = sgl.n_bytes;
     while (available_bytes - consumed_bytes >= 3) {
-        // TODO what if msg_len == 0? subtraction would underflow
         u32 soupbintcp_len = 0; // 16 bits actually
 
         soupbintcp_len |= static_cast<u32>(*(cur_ptr + offset)) << 8;
@@ -118,7 +117,7 @@ void SoupBinTcpSession::handle_rx() {
         char soupbintcp_msg_type = static_cast<char>(*(cur_ptr + offset));
         advance(1);
 
-        if (available_bytes - consumed_bytes < soupbintcp_len - 1) {
+        if (soupbintcp_len == 0 || available_bytes - consumed_bytes < soupbintcp_len - 1) {
             consumed_bytes -= 3;
             break;
         }
