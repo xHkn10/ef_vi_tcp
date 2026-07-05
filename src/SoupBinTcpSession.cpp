@@ -91,6 +91,19 @@ void SoupBinTcpSession::handle_rx() {
             cur_ptr = cur_buf ? cur_buf->meta.payload.data() : nullptr;
         }
     };
+    auto fragment_aware_advance = [&](u32 steps) {
+        u32 steps_left = steps;
+        while (steps_left > 0 && cur_buf) {
+            u32 next = cur_buf->meta.payload.size() - offset;
+            if (steps_left < next) {
+                offset += steps_left;
+                break;
+            }
+            steps_left -= next;
+            cur_buf = cur_buf->meta.nxt;
+            offset = 0;
+        }
+    };
 
     auto fragmented_memcpy = [&](std::byte* dst, u32 n_bytes) {
         u32 dst_offset = 0;
@@ -131,6 +144,11 @@ void SoupBinTcpSession::handle_rx() {
 
         switch (soupbintcp_msg_type) {
             case LOGIN_ACCEPTED: {
+                if (soupbintcp_len != 31) [[unlikely]] {
+                    std::printf("Expected soupbintcp len 31 for LOGIN ACCEPTED, received %u", soupbintcp_len);
+                    break;
+                }
+
                 state = SessionState::Active;
                 fragmented_memcpy(reinterpret_cast<std::byte*>(session.data()), 10);
                 int skipped_bytes = 0;
@@ -145,16 +163,27 @@ void SoupBinTcpSession::handle_rx() {
                 break;
             }
             case LOGIN_REJECTED: {
+                if (soupbintcp_len != 2) [[unlikely]] {
+                    std::printf("Expected soupbintcp len 2 for LOGIN REJECTED, received %u", soupbintcp_len);
+                    break;
+                }
+
                 state = SessionState::Disconnected;
                 char rej_reason = static_cast<char>(*(cur_ptr + offset));
-                std::printf("Reject reason: %c\n", rej_reason);
                 advance(1);
+                std::printf("Reject reason: %c\n", rej_reason);
+
                 app.on_login_rejected(rej_reason);
                 break;
             }
-            case HEARTBEAT:
+            case HEARTBEAT: {
+                if (soupbintcp_len != 2) [[unlikely]]
+                    std::printf("Expected soupbintcp len 1 for HEARTBEAT, received %u", soupbintcp_len);
                 break;
+            }
             case END_OF_SESSION: {
+                if (soupbintcp_len != 2) [[unlikely]]
+                    std::printf("Expected soupbintcp len 1 for END OF SESSION, received %u", soupbintcp_len);
                 state = SessionState::Disconnected;
                 app.on_end_of_session();
                 break;
@@ -173,9 +202,9 @@ void SoupBinTcpSession::handle_rx() {
                 ++seq_num;
                 break;
             }
-            default: {
+            default: [[unlikely]] {
                 std::puts("Unknown soupbintcp msg type\n");
-                advance(soupbintcp_len - 1);
+                fragment_aware_advance(soupbintcp_len - 1);
                 break;
             }
         }

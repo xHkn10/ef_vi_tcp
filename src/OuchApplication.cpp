@@ -15,7 +15,7 @@ bool OuchApplication::cancel_order(std::string_view token) {
     return true;
 }
 
-// OuchApplication::on_message also takes the OUCH msg type char
+// OuchApplication::on_message's span includes the OUCH msg type char
 void OuchApplication::on_message(std::span<std::byte> ouch_msg) {
     char msg_type = static_cast<char>(ouch_msg[0]);
 
