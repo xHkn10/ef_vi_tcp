@@ -5,6 +5,7 @@
 bool OuchApplication::enter_order(std::string_view token, u32 book_id, i32 price, u8 tif, u8 open_close, std::string_view account) {
     if (!session || !session->is_logged_in())
         return false;
+
     return true;
 }
 

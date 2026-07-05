@@ -9,7 +9,7 @@ class SoupBinTcpSession;
 class OuchApplication {
 friend SoupBinTcpSession;
 public:
-    bool enter_order(std::string_view token, u32 book_id, i32 price, u8 tif, u8 open_close, std::string_view account);
+    bool enter_order(std::string_view token, u32 book_id, char side, u64 quantity, i32 price, u8 tif, u8 open_close, std::string_view account);
     bool cancel_order(std::string_view token);
 
     void on_message(char msg_type, std::span<std::byte> payload);
