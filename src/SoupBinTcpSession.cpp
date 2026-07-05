@@ -134,6 +134,7 @@ void SoupBinTcpSession::handle_rx() {
                 char seq_num_bytes[21]{};
                 fragmented_memcpy(reinterpret_cast<std::byte*>(seq_num_bytes), 20 - skipped_bytes);
                 seq_num = strtoll(seq_num_bytes, nullptr, 10);
+                app.on_login_accepted(session, seq_num);
                 break;
             }
             case 'J': {
@@ -148,6 +149,7 @@ void SoupBinTcpSession::handle_rx() {
                 break;
             case 'Z': {
                 state = SessionState::Disconnected;
+                app.on_end_of_session();
                 break;
             }
             case 'S': {
