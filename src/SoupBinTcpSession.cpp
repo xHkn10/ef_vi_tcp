@@ -129,7 +129,7 @@ void SoupBinTcpSession::handle_rx() {
         advance(1);
 
         if (soupbintcp_len == 0) [[unlikely]] {
-            std::puts("0 length soupbintcp message received\n. Aborting...");
+            std::puts("0 length soupbintcp message received. Aborting...\n");
             goto fatal;
         }
 
@@ -190,7 +190,7 @@ void SoupBinTcpSession::handle_rx() {
             }
             case SEQUENCED_DATA: [[likely]] {
                 if (soupbintcp_len < 2) [[unlikely]] {
-                    std::printf("soupbintcp_len cannot be %u bytes\n. Aborting...", soupbintcp_len);
+                    std::printf("soupbintcp_len cannot be %u bytes. Aborting...\n", soupbintcp_len);
                     goto fatal;
                 }
                 u32 ouch_len = soupbintcp_len - 1;
@@ -220,6 +220,8 @@ void SoupBinTcpSession::handle_rx() {
     fatal:
     sock.abort();
     sock.consume(sgl, sgl.n_bytes);
+    state = SessionState::Disconnected;
+    app.on_disconnect();
 }
 
 bool SoupBinTcpSession::send_unsequenced(std::span<std::byte> ouch_payload) {

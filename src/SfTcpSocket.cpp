@@ -145,8 +145,10 @@ bool SfTcpSocket::abort() {
         return false;
     if (ctx.tx_free_stk.empty() || ef_vi_transmit_space(&ctx.vi) == 0)
         return false;
-    int id = pop_back(ctx.tx_free_stk);
 
+    tcb.state = TcpState::CLOSED;
+
+    int id = pop_back(ctx.tx_free_stk);
     pkt_buf* pb = ctx.tx_pkt_bufs[id];
 
     pb->meta.tx_ref_cnt = 1;
