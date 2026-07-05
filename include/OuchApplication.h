@@ -4,6 +4,8 @@
 #include <string_view>
 #include "types.h"
 
+class SoupBinTcpSession;
+
 class OuchApplication {
 public:
     bool enter_order(std::string_view token, u32 book_id, i32 price, u8 tif, u8 open_close, std::string_view account);

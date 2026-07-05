@@ -14,10 +14,6 @@ void OuchApplication::on_cancel_accepted() {
 
 }
 
-void OuchApplication::on_cancel_rejected() {
-
-}
-
 void OuchApplication::on_order_accepted() {
 
 }
