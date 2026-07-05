@@ -91,20 +91,17 @@ void SoupBinTcpSession::handle_rx() {
             cur_ptr = cur_buf ? cur_buf->meta.payload.data() : nullptr;
         }
     };
-    auto fragment_aware_advance = [&](u32 steps) {
-        u32 steps_left = steps;
-        while (steps_left > 0 && cur_buf) {
-            u32 next = cur_buf->meta.payload.size() - offset;
-            if (steps_left < next) {
-                offset += steps_left;
+    auto fragment_aware_advance = [&](u32 n_bytes) {
+        while (n_bytes > 0) {
+            if (!cur_buf) [[unlikely]] {
+                std::puts("[DEBUG] cur_buf shouldn't have been null\n");
                 break;
             }
-            steps_left -= next;
-            cur_buf = cur_buf->meta.nxt;
-            offset = 0;
+            u32 chunk_sz = std::min<u32>(n_bytes, cur_buf->meta.payload.size() - offset);
+            n_bytes -= chunk_sz;
+            advance(chunk_sz);
         }
     };
-
     auto fragmented_memcpy = [&](std::byte* dst, u32 n_bytes) {
         u32 dst_offset = 0;
         while (n_bytes > 0) {
@@ -144,8 +141,9 @@ void SoupBinTcpSession::handle_rx() {
 
         switch (soupbintcp_msg_type) {
             case LOGIN_ACCEPTED: {
-                if (soupbintcp_len != 31) [[unlikely]] {
+                if (soupbintcp_len != 31) {
                     std::printf("Expected soupbintcp len 31 for LOGIN ACCEPTED, received %u", soupbintcp_len);
+                    logout(); // TODO should I do fragment_aware_advance(soupbintcp_len - 1) instead?
                     break;
                 }
 
@@ -163,8 +161,9 @@ void SoupBinTcpSession::handle_rx() {
                 break;
             }
             case LOGIN_REJECTED: {
-                if (soupbintcp_len != 2) [[unlikely]] {
+                if (soupbintcp_len != 2) {
                     std::printf("Expected soupbintcp len 2 for LOGIN REJECTED, received %u", soupbintcp_len);
+                    logout(); // TODO should I do fragment_aware_advance(soupbintcp_len - 1) instead?
                     break;
                 }
 
@@ -177,18 +176,28 @@ void SoupBinTcpSession::handle_rx() {
                 break;
             }
             case HEARTBEAT: {
-                if (soupbintcp_len != 2) [[unlikely]]
+                if (soupbintcp_len != 1) {
                     std::printf("Expected soupbintcp len 1 for HEARTBEAT, received %u", soupbintcp_len);
+                    logout(); // TODO should I do fragment_aware_advance(soupbintcp_len - 1) instead?
+                }
                 break;
             }
             case END_OF_SESSION: {
-                if (soupbintcp_len != 2) [[unlikely]]
+                if (soupbintcp_len != 1) {
                     std::printf("Expected soupbintcp len 1 for END OF SESSION, received %u", soupbintcp_len);
+                    logout(); // TODO should I do fragment_aware_advance(soupbintcp_len - 1) instead?
+                    break;
+                }
                 state = SessionState::Disconnected;
                 app.on_end_of_session();
                 break;
             }
-            case SEQUENCED_DATA: {
+            case SEQUENCED_DATA: [[likely]] {
+                if (soupbintcp_len < 2) [[unlikely]] {
+                    std::printf("soupbintcp_len cannot be %u bytes\n", soupbintcp_len);
+                    logout();
+                    break;
+                }
                 u32 ouch_len = soupbintcp_len - 1;
 
                 if (offset + ouch_len <= cur_buf->meta.payload.size()) {
@@ -202,7 +211,7 @@ void SoupBinTcpSession::handle_rx() {
                 ++seq_num;
                 break;
             }
-            default: [[unlikely]] {
+            default: {
                 std::puts("Unknown soupbintcp msg type\n");
                 fragment_aware_advance(soupbintcp_len - 1);
                 break;
