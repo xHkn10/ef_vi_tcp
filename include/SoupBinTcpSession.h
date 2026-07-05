@@ -42,7 +42,7 @@ private:
     u64 last_rx_cycles = 0;
     u64 last_tx_cycles = 0;
 
-    std::string session{};
+    std::array<char, 10> session{};
     u64 seq_num = 0;
 };
 
