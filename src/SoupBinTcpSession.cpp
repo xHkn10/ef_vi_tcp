@@ -129,9 +129,8 @@ void SoupBinTcpSession::handle_rx() {
         advance(1);
 
         if (soupbintcp_len == 0) [[unlikely]] {
-            std::puts("0 length soupbintcp message received\n");
-            logout();
-            break;
+            std::puts("0 length soupbintcp message received\n. Aborting...");
+            goto fatal;
         }
 
         if (available_bytes - consumed_bytes < soupbintcp_len - 1) {
@@ -142,9 +141,8 @@ void SoupBinTcpSession::handle_rx() {
         switch (soupbintcp_msg_type) {
             case LOGIN_ACCEPTED: {
                 if (soupbintcp_len != 31) {
-                    std::printf("Expected soupbintcp len 31 for LOGIN ACCEPTED, received %u\n", soupbintcp_len);
-                    logout(); // TODO should I do fragment_aware_advance(soupbintcp_len - 1) instead?
-                    break;
+                    std::printf("Expected soupbintcp len 31 for LOGIN ACCEPTED, received %u. Aborting...\n", soupbintcp_len);
+                    goto fatal;
                 }
 
                 state = SessionState::Active;
@@ -162,9 +160,8 @@ void SoupBinTcpSession::handle_rx() {
             }
             case LOGIN_REJECTED: {
                 if (soupbintcp_len != 2) {
-                    std::printf("Expected soupbintcp len 2 for LOGIN REJECTED, received %u\n", soupbintcp_len);
-                    logout(); // TODO should I do fragment_aware_advance(soupbintcp_len - 1) instead?
-                    break;
+                    std::printf("Expected soupbintcp len 2 for LOGIN REJECTED, received %u. Aborting...\n", soupbintcp_len);
+                    goto fatal;
                 }
 
                 state = SessionState::Disconnected;
@@ -177,16 +174,15 @@ void SoupBinTcpSession::handle_rx() {
             }
             case HEARTBEAT: {
                 if (soupbintcp_len != 1) {
-                    std::printf("Expected soupbintcp len 1 for HEARTBEAT, received %u\n", soupbintcp_len);
-                    logout(); // TODO should I do fragment_aware_advance(soupbintcp_len - 1) instead?
+                    std::printf("Expected soupbintcp len 1 for HEARTBEAT, received %u. Aborting...\n", soupbintcp_len);
+                    goto fatal;
                 }
                 break;
             }
             case END_OF_SESSION: {
                 if (soupbintcp_len != 1) {
-                    std::printf("Expected soupbintcp len 1 for END OF SESSION, received %u\n", soupbintcp_len);
-                    logout(); // TODO should I do fragment_aware_advance(soupbintcp_len - 1) instead?
-                    break;
+                    std::printf("Expected soupbintcp len 1 for END OF SESSION, received %u. Aborting...\n", soupbintcp_len);
+                    goto fatal;
                 }
                 state = SessionState::Disconnected;
                 app.on_end_of_session();
@@ -194,9 +190,8 @@ void SoupBinTcpSession::handle_rx() {
             }
             case SEQUENCED_DATA: [[likely]] {
                 if (soupbintcp_len < 2) [[unlikely]] {
-                    std::printf("soupbintcp_len cannot be %u bytes\n", soupbintcp_len);
-                    logout();
-                    break;
+                    std::printf("soupbintcp_len cannot be %u bytes\n. Aborting...", soupbintcp_len);
+                    goto fatal;
                 }
                 u32 ouch_len = soupbintcp_len - 1;
 
@@ -220,6 +215,11 @@ void SoupBinTcpSession::handle_rx() {
     }
 
     sock.consume(sgl, static_cast<int>(consumed_bytes));
+    return;
+
+    fatal:
+    sock.abort();
+    sock.consume(sgl, sgl.n_bytes);
 }
 
 bool SoupBinTcpSession::send_unsequenced(std::span<std::byte> ouch_payload) {
