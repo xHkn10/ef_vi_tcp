@@ -144,7 +144,7 @@ bool SfTcpSocket::abort() {
     if (tcb.state != TcpState::ESTABLISHED)
         return false;
     if (ctx.tx_free_stk.empty() || ef_vi_transmit_space(&ctx.vi) == 0)
-        return false;
+        return false; // best effort
 
     tcb.state = TcpState::CLOSED;
 

@@ -225,9 +225,15 @@ void SoupBinTcpSession::handle_rx() {
 }
 
 bool SoupBinTcpSession::send_unsequenced(std::span<std::byte> ouch_payload) {
+    if (ouch_payload.size() > MAX_OUCH_MSG_SZ) {
+        std::printf("OUCH payload of size %lu bytes too big\n", ouch_payload.size());
+        return false;
+    }
+    
     u32 msg_len = ouch_payload.size() + 1;  // 16 bits actually
     u32 total_len = msg_len + 2;
-    std::array<std::byte, 256> packet{};
+    std::array<std::byte, MAX_OUCH_MSG_SZ + 3> packet{};
+
     *reinterpret_cast<u16*>(packet.data()) = htons(msg_len);
     packet[2] = static_cast<std::byte>(UNSEQUENCED_DATA);
     std::memcpy(packet.data() + 3, ouch_payload.data(), ouch_payload.size());

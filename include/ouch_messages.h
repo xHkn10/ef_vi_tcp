@@ -1,5 +1,7 @@
 #pragma once
 
+#include <algorithm>
+
 #include "types.h"
 
 constexpr char ENTER_ORDER = 'O';
@@ -82,3 +84,18 @@ struct ouch_order_executed {
     char reserved[16];
 } __attribute__((packed));
 static_assert(sizeof(ouch_order_executed) == 68);
+
+
+template <typename... Ts>
+consteval u32 max_sizeof() {
+    return std::max({sizeof(Ts)...});
+}
+
+constexpr u32 MAX_OUCH_MSG_SZ = max_sizeof<
+    ouch_enter_order,
+    ouch_cancel_order,
+    ouch_order_accepted,
+    ouch_order_executed,
+    ouch_order_rejected,
+    ouch_cancel_accepted
+>();
