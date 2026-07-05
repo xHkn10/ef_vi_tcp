@@ -117,7 +117,13 @@ void SoupBinTcpSession::handle_rx() {
         char soupbintcp_msg_type = static_cast<char>(*(cur_ptr + offset));
         advance(1);
 
-        if (soupbintcp_len == 0 || available_bytes - consumed_bytes < soupbintcp_len - 1) {
+        if (soupbintcp_len == 0) [[unlikely]] {
+            std::puts("0 length soupbintcp message received\n");
+            logout();
+            return;
+        }
+
+        if (available_bytes - consumed_bytes < soupbintcp_len - 1) {
             consumed_bytes -= 3;
             break;
         }
