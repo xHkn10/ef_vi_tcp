@@ -121,7 +121,7 @@ void SoupBinTcpSession::handle_rx() {
         if (soupbintcp_len == 0) [[unlikely]] {
             std::puts("0 length soupbintcp message received\n");
             logout();
-            return;
+            break;
         }
 
         if (available_bytes - consumed_bytes < soupbintcp_len - 1) {
@@ -239,3 +239,4 @@ bool SoupBinTcpSession::send_heartbeat() {
 bool SoupBinTcpSession::is_logged_in() const {
     return state == SessionState::Active;
 }
+

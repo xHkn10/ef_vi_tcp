@@ -18,7 +18,7 @@ bool OuchApplication::cancel_order(std::string_view token) {
 void OuchApplication::on_message(char msg_type, std::span<std::byte> payload) {
     switch (msg_type) {
         case ORDER_ACCEPTED: {
-            
+
             break;
         }
         case ORDER_EXECUTED: {

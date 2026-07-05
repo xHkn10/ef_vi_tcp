@@ -13,7 +13,6 @@ constexpr char END_OF_SESSION = 'Z';
 constexpr char SEQUENCED_DATA = 'S';
 constexpr char UNSEQUENCED_DATA = 'U';
 
-
 enum class SessionState {
     Disconnected,
     LoggingIn,
