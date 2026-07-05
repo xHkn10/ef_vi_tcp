@@ -9,11 +9,10 @@ struct ouch_enter_order {
     char side; // 'B' buy, 'S' sell, 'T' short sell
     u64 quantity;
     i32 price;
-    u8 time_in_force;           // 0 day, 3 IoC, 4 FoK
+    u8 time_in_force;           // 0 day, 3 immediate or cancel, 4 fill or kill
     u8 open_close;              // 0 default, 1 open, 2 close/net
     char client_account[16];
 } __attribute__((packed));
-
 static_assert(sizeof(ouch_enter_order) == 50);
 
 
@@ -52,7 +51,7 @@ struct ouch_order_rejected {
 } __attribute__((packed));
 static_assert(sizeof(ouch_order_rejected) == 27);
 
-struct ouch_order_canceled {
+struct ouch_cancel_accepted {
     char msg_type; // 'C'
     u64 timestamp;
     char order_token[14];
@@ -61,4 +60,17 @@ struct ouch_order_canceled {
     u64 order_id;
     u8 reason; // 1 canceled by user, 9 canceled by system
 } __attribute__((packed));
-static_assert(sizeof(ouch_order_canceled) == 37);
+static_assert(sizeof(ouch_cancel_accepted) == 37);
+
+struct ouch_order_executed {
+    char msg_type;              // 'E'
+    u64 timestamp;              // UNIX time in nanoseconds
+    char order_token[14];
+    u32 order_book_id;          // one message per leg for combination fills
+    u64 traded_quantity;        // amount filled in THIS transaction
+    i32 trade_price;            // signed, implied decimals per ITCH directory
+    u8 match_id[12];            // big-endian 12-byte numeric, unique per trade
+    u8 client_category;         // 1 client, 2 house, 7 fund, ... (unused on VIOP)
+    char reserved[16];
+} __attribute__((packed));
+static_assert(sizeof(ouch_order_executed) == 68);

@@ -10,19 +10,24 @@ bool OuchApplication::enter_order(std::string_view token, u32 book_id, char side
 }
 
 bool OuchApplication::cancel_order(std::string_view token) {
-
+    if (!session || !session->is_logged_in())
+        return false;
     return true;
 }
 
-void OuchApplication::on_cancel_accepted() {
+void OuchApplication::on_order_accepted(ouch_order_accepted &msg) {
 
 }
 
-void OuchApplication::on_order_accepted() {
+void OuchApplication::on_order_rejected(ouch_order_rejected &msg) {
 
 }
 
-void OuchApplication::on_order_rejected() {
+void OuchApplication::on_order_executed(ouch_order_executed &msg) {
+
+}
+
+void OuchApplication::on_cancel_accepted(ouch_cancel_accepted &msg) {
 
 }
 

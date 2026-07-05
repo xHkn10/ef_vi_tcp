@@ -2,6 +2,8 @@
 
 #include <span>
 #include <string_view>
+
+#include "ouch_messages.h"
 #include "types.h"
 
 class SoupBinTcpSession;
@@ -17,9 +19,10 @@ public:
     void on_login_accepted(std::array<char, 10> session, u64 seq_num);
     void on_login_rejected(char reject_reason);
 
-    void on_order_accepted();
-    void on_order_rejected();
-    void on_cancel_accepted();
+    void on_order_accepted(ouch_order_accepted& msg);
+    void on_order_rejected(ouch_order_rejected& msg);
+    void on_order_executed(ouch_order_executed& msg);
+    void on_cancel_accepted(ouch_cancel_accepted& msg);
 
     void on_disconnect();
 
