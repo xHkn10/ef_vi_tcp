@@ -160,17 +160,14 @@ void SoupBinTcpSession::handle_rx() {
                 break;
             }
             case SEQUENCED_DATA: {
-                char ouch_msg_type = static_cast<char>(*(cur_ptr + offset));
-                advance(1);
+                u32 ouch_len = soupbintcp_len - 1;
 
-                u32 ouch_payload_len = soupbintcp_len - 2;
-
-                if (offset + ouch_payload_len <= cur_buf->meta.payload.size()) {
-                    app.on_message(ouch_msg_type, {cur_ptr + offset, ouch_payload_len});
-                    advance(ouch_payload_len);
+                if (offset + ouch_len <= cur_buf->meta.payload.size()) {
+                    app.on_message({cur_ptr + offset, ouch_len});
+                    advance(ouch_len);
                 } else {
-                    fragmented_memcpy(fragment_buffer, ouch_payload_len);
-                    app.on_message(ouch_msg_type, {fragment_buffer, ouch_payload_len});
+                    fragmented_memcpy(fragment_buffer, ouch_len);
+                    app.on_message({fragment_buffer, ouch_len});
                 }
 
                 ++seq_num;

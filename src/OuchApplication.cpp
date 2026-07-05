@@ -15,7 +15,10 @@ bool OuchApplication::cancel_order(std::string_view token) {
     return true;
 }
 
-void OuchApplication::on_message(char msg_type, std::span<std::byte> payload) {
+// OuchApplication::on_message also takes the OUCH msg type char
+void OuchApplication::on_message(std::span<std::byte> ouch_msg) {
+    char msg_type = static_cast<char>(ouch_msg[0]);
+
     switch (msg_type) {
         case ORDER_ACCEPTED: {
 
@@ -38,19 +41,19 @@ void OuchApplication::on_message(char msg_type, std::span<std::byte> payload) {
     }
 }
 
-void OuchApplication::on_order_accepted(ouch_order_accepted &msg) {
+void OuchApplication::on_order_accepted(const ouch_order_accepted &msg) {
 
 }
 
-void OuchApplication::on_order_rejected(ouch_order_rejected &msg) {
+void OuchApplication::on_order_rejected(const ouch_order_rejected &msg) {
 
 }
 
-void OuchApplication::on_order_executed(ouch_order_executed &msg) {
+void OuchApplication::on_order_executed(const ouch_order_executed &msg) {
 
 }
 
-void OuchApplication::on_cancel_accepted(ouch_cancel_accepted &msg) {
+void OuchApplication::on_cancel_accepted(const ouch_cancel_accepted &msg) {
 
 }
 
