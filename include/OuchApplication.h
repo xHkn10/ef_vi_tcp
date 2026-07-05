@@ -7,6 +7,7 @@
 class SoupBinTcpSession;
 
 class OuchApplication {
+friend SoupBinTcpSession;
 public:
     bool enter_order(std::string_view token, u32 book_id, i32 price, u8 tif, u8 open_close, std::string_view account);
     bool cancel_order(std::string_view token);
@@ -19,9 +20,12 @@ public:
     void on_order_accepted();
     void on_order_rejected();
     void on_cancel_accepted();
-    void on_cancel_rejected();
 
     void on_disconnect();
 
     void on_end_of_session();
+
+private:
+    void attach(SoupBinTcpSession& s);
+    SoupBinTcpSession* session = nullptr;
 };

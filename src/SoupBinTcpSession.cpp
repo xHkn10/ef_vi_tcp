@@ -2,8 +2,9 @@
 
 #include <netinet/in.h>
 
-SoupBinTcpSession::SoupBinTcpSession(SfTcpSocket &sock, OuchApplication &app)
-    : sock{sock}, app{app} {}
+SoupBinTcpSession::SoupBinTcpSession(SfTcpSocket &sock, OuchApplication &app) : sock{sock}, app{app} {
+    app.attach(*this);
+}
 
 bool SoupBinTcpSession::login(std::string_view username, std::string_view password, std::string_view session, std::string_view seq) {
     if (username.size() > 6) {

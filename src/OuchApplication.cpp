@@ -1,7 +1,10 @@
 #include "OuchApplication.h"
 
-bool OuchApplication::enter_order(std::string_view token, u32 book_id, i32 price, u8 tif, u8 open_close, std::string_view account) {
+#include "SoupBinTcpSession.h"
 
+bool OuchApplication::enter_order(std::string_view token, u32 book_id, i32 price, u8 tif, u8 open_close, std::string_view account) {
+    if (!session || !session->is_logged_in())
+        return false;
     return true;
 }
 
@@ -40,4 +43,8 @@ void OuchApplication::on_login_accepted(std::array<char, 10> session, u64 seq_nu
 
 void OuchApplication::on_end_of_session() {
 
+}
+
+void OuchApplication::attach(SoupBinTcpSession &s) {
+    session = &s;
 }
