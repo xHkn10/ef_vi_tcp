@@ -1,12 +1,24 @@
 #pragma once
 
+#include <cstdio>
 #include <etherfabric/ef_vi.h>
 
 #define LOG_ERROR(fmt, ...) \
     fprintf(stderr, "[ERROR] %s:%d: " fmt "\n", __FILE__, __LINE__, ##__VA_ARGS__)
 
+#define LOG_WARN(fmt, ...) \
+    fprintf(stderr, "[WARN]  %s:%d: " fmt "\n", __FILE__, __LINE__, ##__VA_ARGS__)
+
 #define LOG_INFO(fmt, ...) \
     fprintf(stdout, "[INFO]  %s:%d: " fmt "\n", __FILE__, __LINE__, ##__VA_ARGS__)
+
+// Compiled out unless DEBUG is defined — keeps the fast path free of I/O.
+#ifdef DEBUG
+    #define LOG_DEBUG(fmt, ...) \
+        fprintf(stderr, "[DEBUG] %s:%d: " fmt "\n", __FILE__, __LINE__, ##__VA_ARGS__)
+#else
+    #define LOG_DEBUG(fmt, ...) ((void)0)
+#endif
 
 constexpr int BUF_SZ = 2048;
 constexpr int PAGE_SZ = 4096 * 1024;

@@ -20,10 +20,10 @@ bool OuchApplication::enter_order(std::string_view token, u32 book_id, char side
     ouch_enter_order order{
         ENTER_ORDER,
         {},
-        htonl(book_id),
+        to_net(book_id),
         side,
-        std::byteswap(quantity),
-        static_cast<i32>(htonl(static_cast<u32>(price))),
+        to_net(quantity),
+        static_cast<i32>(to_net(static_cast<u32>(price))),
         tif,
         open_close,
         {}
@@ -66,7 +66,7 @@ void OuchApplication::on_message(std::span<std::byte> ouch_msg) {
     switch (msg_type) {
         case ORDER_ACCEPTED: {
             if (ouch_msg.size() != sizeof(ouch_order_accepted)) {
-                std::printf("Expected %lu bytes, got %lu bytes.\n", sizeof(ouch_order_accepted), ouch_msg.size());
+                LOG_ERROR("Expected %lu bytes, got %lu bytes", sizeof(ouch_order_accepted), ouch_msg.size());
                 break;
             }
             on_order_accepted(*reinterpret_cast<ouch_order_accepted*>(ouch_msg.data())); // dc if this is UB
@@ -74,7 +74,7 @@ void OuchApplication::on_message(std::span<std::byte> ouch_msg) {
         }
         case ORDER_EXECUTED: {
             if (ouch_msg.size() != sizeof(ouch_order_executed)) {
-                std::printf("Expected %lu bytes, got %lu bytes.\n", sizeof(ouch_order_executed), ouch_msg.size());
+                LOG_ERROR("Expected %lu bytes, got %lu bytes", sizeof(ouch_order_executed), ouch_msg.size());
                 break;
             }
             on_order_executed(*reinterpret_cast<ouch_order_executed*>(ouch_msg.data()));
@@ -82,7 +82,7 @@ void OuchApplication::on_message(std::span<std::byte> ouch_msg) {
         }
         case ORDER_REJECTED: {
             if (ouch_msg.size() != sizeof(ouch_order_rejected)) {
-                std::printf("Expected %lu bytes, got %lu bytes.\n", sizeof(ouch_order_rejected), ouch_msg.size());
+                LOG_ERROR("Expected %lu bytes, got %lu bytes", sizeof(ouch_order_rejected), ouch_msg.size());
                 break;
             }
             on_order_rejected(*reinterpret_cast<ouch_order_rejected*>(ouch_msg.data()));
@@ -90,14 +90,14 @@ void OuchApplication::on_message(std::span<std::byte> ouch_msg) {
         }
         case CANCEL_ACCEPTED: {
             if (ouch_msg.size() != sizeof(ouch_cancel_accepted)) {
-                std::printf("Expected %lu bytes, got %lu bytes.\n", sizeof(ouch_cancel_accepted), ouch_msg.size());
+                LOG_ERROR("Expected %lu bytes, got %lu bytes", sizeof(ouch_cancel_accepted), ouch_msg.size());
                 break;
             }
             on_cancel_accepted(*reinterpret_cast<ouch_cancel_accepted*>(ouch_msg.data()));
             break;
         }
         default:
-            std::printf("Unknown ouch msg type: %c\n", msg_type);
+            LOG_WARN("Unknown ouch msg type: %c", msg_type);
     }
 }
 

@@ -48,13 +48,13 @@ bool SfTcpSocket::bind(u32 local_ip, u16 local_port) {
     ef_filter_spec_init(&filter_spec, EF_FILTER_FLAG_NONE);
 
     // ef_filter_spec_set_ip4_local expects in network order
-    if (int rc = ef_filter_spec_set_ip4_local(&filter_spec, IPPROTO_TCP, htonl(local_ip), htons(local_port)); rc < 0) {
-        fprintf(stderr, "ef_filter_spec_set_ip4_local: %s\n", strerror(-rc));
+    if (int rc = ef_filter_spec_set_ip4_local(&filter_spec, IPPROTO_TCP, to_net(local_ip), to_net(local_port)); rc < 0) {
+        LOG_ERROR("ef_filter_spec_set_ip4_local: %s", strerror(-rc));
         return false;
     }
 
     if (int rc = ef_vi_filter_add(&ctx.vi, ctx.dh, &filter_spec, nullptr); rc < 0) {
-        fprintf(stderr, "ef_vi_filter_add: %s\n", strerror(-rc));
+        LOG_ERROR("ef_vi_filter_add: %s", strerror(-rc));
         return false;
     }
 
@@ -62,8 +62,8 @@ bool SfTcpSocket::bind(u32 local_ip, u16 local_port) {
     this->local_port = local_port;
 
     for (auto& pb : ctx.tx_pkt_bufs) {
-        get_ip_hdr(pb)->s_addr = htonl(local_ip);
-        get_tcp_hdr(pb)->src_port = htons(local_port);
+        get_ip_hdr(pb)->s_addr = to_net(local_ip);
+        get_tcp_hdr(pb)->src_port = to_net(local_port);
     }
 
     is_bound = true;
@@ -88,8 +88,8 @@ bool SfTcpSocket::connect(u32 remote_ip, u16 remote_port, u8 dmac[6], u8 smac[6]
         eth_hdr* eth = get_eth_hdr(pb);
         std::memcpy(eth->dmac, dmac, 6);
         std::memcpy(eth->smac, smac, 6);
-        get_ip_hdr(pb)->d_addr = htonl(remote_ip);
-        get_tcp_hdr(pb)->dst_port = htons(remote_port);
+        get_ip_hdr(pb)->d_addr = to_net(remote_ip);
+        get_tcp_hdr(pb)->dst_port = to_net(remote_port);
     }
 
     {
@@ -97,7 +97,7 @@ bool SfTcpSocket::connect(u32 remote_ip, u16 remote_port, u8 dmac[6], u8 smac[6]
         pkt_buf* pb = ctx.tx_pkt_bufs[id];
         pb->meta.tx_ref_cnt = 1;
         get_tcp_hdr(pb)->control = SYN_FLAG;
-        get_ip_hdr(pb)->len = htons(TCP_HDR_SZ + IP_HDR_SZ);
+        get_ip_hdr(pb)->len = to_net<u16>(TCP_HDR_SZ + IP_HDR_SZ);
         ef_vi_transmit(&ctx.vi, pb->dma_buf_addr, TCP_TOTAL_HDR_SZ, id);
     }
 
@@ -105,14 +105,14 @@ bool SfTcpSocket::connect(u32 remote_ip, u16 remote_port, u8 dmac[6], u8 smac[6]
     const auto deadline = cycle_timer::now() + cycle_timer::cycles_per_ms * CONNECT_TIMEOUT_MILLISECONDS;
     for (int spins = 0; tcb.state == TcpState::SYN_SENT; ++spins) {
         if ((spins & 0xFF) == 0 && cycle_timer::now() > deadline) {
-            std::puts("Connection timeout\n");
+            LOG_ERROR("Connection timeout");
             return false;
         }
         poll_once();
     }
 
     if (tcb.state == TcpState::ESTABLISHED)
-        std::puts("3 WHS successful\n");
+        LOG_INFO("3-way handshake successful");
 
     return tcb.state == TcpState::ESTABLISHED;
 }
@@ -132,10 +132,10 @@ bool SfTcpSocket::close() {
     auto* ip = get_ip_hdr(pb);
 
     tcp->control = FIN_FLAG | ACK_FLAG;
-    tcp->seq_num = htonl(tcb.SND_NXT++);
-    tcp->ack_num = htonl(tcb.RCV_NXT);
+    tcp->seq_num = to_net(tcb.SND_NXT++);
+    tcp->ack_num = to_net(tcb.RCV_NXT);
 
-    ip->len = htons(IP_HDR_SZ + TCP_HDR_SZ);
+    ip->len = to_net<u16>(IP_HDR_SZ + TCP_HDR_SZ);
 
     tcb.state = tcb.state == TcpState::ESTABLISHED ? TcpState::FIN_WAIT1 : TcpState::LAST_ACK;
 
@@ -159,10 +159,10 @@ bool SfTcpSocket::abort() {
     auto* tcp = get_tcp_hdr(pb);
 
     tcp->control = RST_FLAG;
-    tcp->seq_num = htonl(tcb.SND_NXT);
-    tcp->ack_num = htonl(tcb.RCV_NXT);
+    tcp->seq_num = to_net(tcb.SND_NXT);
+    tcp->ack_num = to_net(tcb.RCV_NXT);
 
-    get_ip_hdr(pb)->len = htons(IP_HDR_SZ + TCP_HDR_SZ);
+    get_ip_hdr(pb)->len = to_net<u16>(IP_HDR_SZ + TCP_HDR_SZ);
 
     ef_vi_transmit(&ctx.vi, pb->dma_buf_addr, TCP_TOTAL_HDR_SZ, id);
 
@@ -216,7 +216,7 @@ int SfTcpSocket::send(std::span<const std::byte> payload) {
 }
 
 void SfTcpSocket::write_headers(pkt_buf* pb) const {
-    eth_hdr eh{.ethertype = htons(0x0800)}; // TODO fill in smac dmac
+    eth_hdr eh{.ethertype = to_net<u16>(0x0800)}; // TODO fill in smac dmac
 
     // NO ip options, NO ip fragmentation
     ip_hdr ih{
@@ -224,22 +224,22 @@ void SfTcpSocket::write_headers(pkt_buf* pb) const {
         0, // No dscp, no ecn
         0,
         0,
-        htons(0x4000),
+        to_net<u16>(0x4000),
         255,
         IPPROTO_TCP,
         0,
-        htonl(local_ip),
-        htonl(remote_ip)
+        to_net(local_ip),
+        to_net(remote_ip)
     };
 
     tcp_hdr th{
-        htons(local_port),
-        htons(remote_port),
-        htonl(tcb.ISS),
+        to_net(local_port),
+        to_net(remote_port),
+        to_net(tcb.ISS),
         0,
         0x50,
         0, // CWR, ECE, URG, ACK, PSH, RST, SYN, FIN; since this is a varying field, it should be always set explicitly
-        htons(0xFFFF),
+        to_net<u16>(0xFFFF),
         0,
         0
     };
@@ -323,11 +323,11 @@ int SfTcpSocket::consume(rx_sgl sgl, int bytes_to_consume) {
 
 template <bool queue>
 void SfTcpSocket::stamp_and_send(pkt_buf* pb, int payload_sz) {
-    get_ip_hdr(pb)->len = htons(IP_HDR_SZ + TCP_HDR_SZ + payload_sz);
+    get_ip_hdr(pb)->len = to_net<u16>(IP_HDR_SZ + TCP_HDR_SZ + payload_sz);
 
     tcp_hdr* tcp = get_tcp_hdr(pb);
-    tcp->seq_num = htonl(tcb.SND_NXT);
-    tcp->ack_num = htonl(tcb.RCV_NXT);
+    tcp->seq_num = to_net(tcb.SND_NXT);
+    tcp->ack_num = to_net(tcb.RCV_NXT);
     tcp->control = ACK_FLAG;
 
     pb->meta.tx_ref_cnt = 2;
@@ -393,12 +393,12 @@ void SfTcpSocket::send_pure_ack() {
     int id = pop_back(ctx.tx_free_stk);
     pkt_buf* pb = ctx.tx_pkt_bufs[id];
 
-    get_ip_hdr(pb)->len = htons(IP_HDR_SZ + TCP_HDR_SZ);
+    get_ip_hdr(pb)->len = to_net<u16>(IP_HDR_SZ + TCP_HDR_SZ);
 
     auto* tcp = get_tcp_hdr(pb);
     tcp->control = ACK_FLAG;
-    tcp->seq_num = htonl(tcb.SND_NXT);
-    tcp->ack_num = htonl(tcb.RCV_NXT);
+    tcp->seq_num = to_net(tcb.SND_NXT);
+    tcp->ack_num = to_net(tcb.RCV_NXT);
 
     tcb.need_ack = tcb.immediate_ack_req = false;
     pb->meta.tx_ref_cnt = 1;
@@ -414,7 +414,7 @@ void SfTcpSocket::poll_once() {
             case EF_EVENT_TYPE_RX_DISCARD: {
                 int id = EF_EVENT_RX_RQ_ID(event);
                 ctx.rx_free_stk.push_back(id);
-                std::puts("poll_once: EF_EVENT_TYPE_RX_DISCARD\n");
+                LOG_DEBUG("poll_once: EF_EVENT_TYPE_RX_DISCARD");
                 break;
             }
             case EF_EVENT_TYPE_RX: {
@@ -431,9 +431,9 @@ void SfTcpSocket::poll_once() {
 
                 // 3 WHS
                 if (tcb.state == TcpState::SYN_SENT) {
-                    if ((tcp->control & (SYN_FLAG | ACK_FLAG)) == (SYN_FLAG | ACK_FLAG) && ntohl(tcp->ack_num) == tcb.ISS + 1) {
-                        tcb.RCV_NXT = ntohl(tcp->seq_num) + 1;
-                        tcb.SND_UNA = ntohl(tcp->ack_num);
+                    if ((tcp->control & (SYN_FLAG | ACK_FLAG)) == (SYN_FLAG | ACK_FLAG) && from_net(tcp->ack_num) == tcb.ISS + 1) {
+                        tcb.RCV_NXT = from_net(tcp->seq_num) + 1;
+                        tcb.SND_UNA = from_net(tcp->ack_num);
                         tcb.state = TcpState::ESTABLISHED;
                         send_pure_ack();
                     }
@@ -444,15 +444,15 @@ void SfTcpSocket::poll_once() {
 
                 // ACK
                 if (tcp->control & ACK_FLAG)
-                    tcb.handle_ack(ntohl(tcp->ack_num), ctx.tx_free_stk);
+                    tcb.handle_ack(from_net(tcp->ack_num), ctx.tx_free_stk);
                 else
-                    std::puts("Received segment without ACK\n");
+                    LOG_DEBUG("Received segment without ACK");
 
                 auto payload = get_tcp_payload(pb);
                 if (payload.empty() && !(tcp->control & FIN_FLAG))
                     ctx.rx_free_stk.push_back(id);
                 else {
-                    pb->meta = {payload, nullptr, ntohl(tcp->seq_num)};
+                    pb->meta = {payload, nullptr, from_net(tcp->seq_num)};
                     if (!tcb.rx_out_of_order.insert(pb))
                         ctx.rx_free_stk.push_back(id);
                 }
@@ -470,7 +470,7 @@ void SfTcpSocket::poll_once() {
                 break;
             }
             default: {
-                std::puts("Unknown event\n");
+                LOG_DEBUG("Unknown event");
                 break;
             }
         }
@@ -494,7 +494,7 @@ void SfTcpSocket::retransmit_head() {
 
     pkt_buf* pb = tcb.tx_unacked.peek_front();
     tcp_hdr* tcp = get_tcp_hdr(pb);
-    tcp->ack_num = htonl(tcb.RCV_NXT);
+    tcp->ack_num = to_net(tcb.RCV_NXT);
     ++(pb->meta.tx_ref_cnt);
 
     ef_vi_transmit(&ctx.vi, pb->dma_buf_addr, TCP_TOTAL_HDR_SZ + pb->meta.payload.size(), pb->id);

@@ -50,38 +50,38 @@ struct ef_struct {
 
     int init_ef_vi() {
         if (int rc = ef_driver_open(&dh); rc < 0) {
-            fprintf(stderr, "ef_driver_open: %s\n", strerror(-rc));
+            LOG_ERROR("ef_driver_open: %s", strerror(-rc));
             return rc;
         }
 
         int ifindex = if_nametoindex("enp1s0f0");
         if (int rc = ef_pd_alloc(&pd, dh, ifindex, EF_PD_DEFAULT); rc < 0) {
-            fprintf(stderr, "ef_pd_alloc: %s\n", strerror(-rc));
+            LOG_ERROR("ef_pd_alloc: %s", strerror(-rc));
             return rc;
         }
 
         if (int rc = ef_vi_alloc_from_pd(&vi, dh, &pd, dh, -1, -1, -1, nullptr, -1, static_cast<enum ef_vi_flags>(0)); rc < 0) {
-            fprintf(stderr, "ef_vi_alloc_from_pd: %s\n", strerror(-rc));
+            LOG_ERROR("ef_vi_alloc_from_pd: %s", strerror(-rc));
             return rc;
         }
 
         if (int rc = posix_memalign(&rx_mem, PAGE_SZ, N_RX_BUFS * BUF_SZ); rc != 0) {
-            fprintf(stderr, "posix_memalign: %s\n", strerror(-rc));
+            LOG_ERROR("posix_memalign: %s", strerror(-rc));
             return rc;
         }
 
         if (int rc = posix_memalign(&tx_mem, PAGE_SZ, N_TX_BUFS * BUF_SZ); rc != 0) {
-            fprintf(stderr, "posix_memalign: %s\n", strerror(-rc));
+            LOG_ERROR("posix_memalign: %s", strerror(-rc));
             return rc;
         }
 
         if (int rc = ef_memreg_alloc(&rx_memreg, dh, &pd, dh, rx_mem, N_RX_BUFS * BUF_SZ); rc < 0) {
-            fprintf(stderr, "ef_memreg_alloc: %s\n", strerror(-rc));
+            LOG_ERROR("ef_memreg_alloc: %s", strerror(-rc));
             return rc;
         }
 
         if (int rc = ef_memreg_alloc(&tx_memreg, dh, &pd, dh, tx_mem, N_TX_BUFS * BUF_SZ); rc < 0) {
-            fprintf(stderr, "ef_memreg_alloc: %s\n", strerror(-rc));
+            LOG_ERROR("ef_memreg_alloc: %s", strerror(-rc));
             return rc;
         }
 

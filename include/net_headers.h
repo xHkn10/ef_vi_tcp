@@ -40,7 +40,7 @@ constexpr int CONNECT_TIMEOUT_MILLISECONDS = 1000;
 struct eth_hdr {
     u8 dmac[6];
     u8 smac[6];
-    u16 ethertype = htons(0x0800); // ASSUMING ALWAYS 0x0800 (ipv4)
+    u16 ethertype = to_net<u16>(0x0800); // ASSUMING ALWAYS 0x0800 (ipv4)
 } __attribute__((packed));
 
 // 20 bytes (no options)
@@ -97,7 +97,7 @@ inline std::span<std::byte> get_tcp_payload(pkt_buf* pb) {
     auto* tcp = get_tcp_hdr(pb);
 
     int tcp_header_len = (tcp->doffset_reserved >> 4) * 4;
-    u32 payload_sz = ntohs(ip->len) - IP_HDR_SZ - tcp_header_len;
+    u32 payload_sz = from_net(ip->len) - IP_HDR_SZ - tcp_header_len;
 
     return {reinterpret_cast<std::byte*>(tcp) + tcp_header_len, payload_sz};
 }
