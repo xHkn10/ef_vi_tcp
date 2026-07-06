@@ -32,7 +32,7 @@ constexpr int UDP_D_PORT_OFFSET = 26;
 constexpr int UDP_LEN_OFFSET = 28;
 
 constexpr int RTO_MILLISECONDS = 200;
-constexpr int CONNECT_TIMEOUT_MILLISECONDS = 500;
+constexpr int CONNECT_TIMEOUT_MILLISECONDS = 1000;
 
 // FIELDS ARE IN NETWORK ORDER
 

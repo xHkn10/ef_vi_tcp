@@ -24,17 +24,31 @@ int main() {
 
     sock.bind(ntohl(local_ip), local_port);
 
-    if (!sock.connect(ntohl(remote_ip), remote_port, dmac, smac)) {
-        std::cerr << "Connection failed.\n";
+    if (!sock.connect(ntohl(remote_ip), remote_port, dmac, smac))
         return 1;
-    }
 
-    std::string packet = "sa dunya0\n";
+    std::string packet = "sa dunya bla bla bla bla bla bla bla bla bla bla bla bla NUM: ";
 
-    int cnt = 0;
-    while (true) {
-        sleep(1);
-        packet[packet.size() - 2] = cnt++;
-        sock.send({reinterpret_cast<const std::byte*>(packet.data()), packet.size()});
+    for (int cnt = 0; ; ++cnt) {
+        if (cnt % (1 << 13) == 0) {
+            std::printf("packet %d sent\n", (cnt >> 13));
+            auto packet_ = packet + std::to_string((cnt >> 13));
+            sock.send({reinterpret_cast<const std::byte*>(packet_.data()), packet_.size()});
+        }
+
+        auto sgl = sock.receive_available();
+        auto cur = sgl.head;
+
+        if (sgl.n_bytes != 0) {
+            std::puts("RECEIVED: \n");
+            while (cur) {
+                for (auto b : cur->meta.payload)
+                    std::putchar(static_cast<char>(b));
+                std::puts("\n");
+                cur = cur->meta.nxt;
+            }
+        }
+
+        sock.consume(sgl, sgl.n_bytes);
     }
 }
