@@ -72,6 +72,7 @@ struct ouch_cancel_accepted {
 } __attribute__((packed));
 static_assert(sizeof(ouch_cancel_accepted) == 37);
 
+// not included in project description but I think I should be implementing this
 struct ouch_order_executed {
     char msg_type;              // 'E'
     u64 timestamp;              // UNIX time in nanoseconds
