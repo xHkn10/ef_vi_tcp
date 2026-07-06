@@ -111,7 +111,8 @@ bool SfTcpSocket::connect(u32 remote_ip, u16 remote_port, u8 dmac[6], u8 smac[6]
         poll_once();
     }
 
-
+    if (tcb.state == TcpState::ESTABLISHED)
+        std::puts("3 WHS successful\n");
 
     return tcb.state == TcpState::ESTABLISHED;
 }
