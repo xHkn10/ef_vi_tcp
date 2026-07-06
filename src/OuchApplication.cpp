@@ -22,7 +22,7 @@ bool OuchApplication::enter_order(std::string_view token, u32 book_id, char side
         {},
         htonl(book_id),
         side,
-        quantity,
+        std::byteswap(quantity),
         static_cast<i32>(htonl(static_cast<u32>(price))),
         tif,
         open_close,
