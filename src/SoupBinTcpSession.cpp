@@ -224,7 +224,7 @@ void SoupBinTcpSession::handle_rx() {
     app.on_disconnect();
 }
 
-bool SoupBinTcpSession::send_unsequenced(std::span<std::byte> ouch_payload) {
+bool SoupBinTcpSession::send_unsequenced(std::span<const std::byte> ouch_payload) {
     if (ouch_payload.size() > MAX_OUCH_MSG_SZ) {
         std::printf("OUCH payload of size %lu bytes too big\n", ouch_payload.size());
         return false;

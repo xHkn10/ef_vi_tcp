@@ -26,7 +26,7 @@ public:
     bool login(std::string_view username, std::string_view password, std::string_view session, std::string_view seq);
     bool logout();
 
-    bool send_unsequenced(std::span<std::byte> ouch_payload);
+    bool send_unsequenced(std::span<const std::byte> ouch_payload);
     // bool send_unsequenced(tx_sgl sgl);
     // bool send_unsequenced(pkt_buf* buf);
 

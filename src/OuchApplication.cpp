@@ -20,28 +20,43 @@ bool OuchApplication::enter_order(std::string_view token, u32 book_id, char side
     ouch_enter_order order{
         ENTER_ORDER,
         {},
-        book_id,
+        htonl(book_id),
         side,
         quantity,
-        price,
+        static_cast<i32>(htonl(static_cast<u32>(price))),
         tif,
         open_close,
         {}
     };
 
-    std::memcpy(&order.order_token, token.data(), token.size());
-    std::memset(&order.order_token + token.size(), ' ', sizeof(ouch_enter_order::order_token) - token.size());
+    std::memcpy(order.order_token, token.data(), token.size());
+    std::memset(order.order_token + token.size(), ' ', sizeof(ouch_enter_order::order_token) - token.size());
 
-    std::memcpy(&order.client_account, account.data(), account.size());
-    std::memset(&order.client_account + account.size(), ' ', sizeof(ouch_enter_order::client_account) - account.size());
+    std::memcpy(order.client_account, account.data(), account.size());
+    std::memset(order.client_account + account.size(), ' ', sizeof(ouch_enter_order::client_account) - account.size());
 
-    return session->send_unsequenced({});
+    return session->send_unsequenced(std::as_bytes(std::span{&order, 1}));
 }
 
-bool OuchApplication::cancel_order(std::string_view token) {
-    if (!session || !session->is_logged_in())
+bool OuchApplication::cancel_order(const std::string_view token) {
+    if (!session || !session->is_logged_in()) {
+        LOG_ERROR("Not logged into a session");
         return false;
-    return true;
+    }
+    if (token.size() > sizeof(ouch_cancel_order::order_token)) {
+        LOG_ERROR("Token size too big, cannot be %lu bytes", token.size());
+        return false;
+    }
+
+    ouch_cancel_order cancel{
+        CANCEL_ORDER,
+        {}
+    };
+
+    std::memcpy(cancel.order_token, token.data(), token.size());
+    std::memset(cancel.order_token + token.size(), ' ', sizeof(ouch_cancel_order::order_token) - token.size());
+
+    return session->send_unsequenced(std::as_bytes(std::span{&cancel, 1}));
 }
 
 // OuchApplication::on_message's span includes the OUCH msg type char
@@ -82,7 +97,7 @@ void OuchApplication::on_message(std::span<std::byte> ouch_msg) {
             break;
         }
         default:
-            std::printf("Unkown ouch msg type: %c\n", msg_type);
+            std::printf("Unknown ouch msg type: %c\n", msg_type);
     }
 }
 
@@ -109,7 +124,6 @@ void OuchApplication::on_disconnect() {
 void OuchApplication::on_login_rejected(char reject_reason_code) {
 
 }
-
 
 void OuchApplication::on_login_accepted(std::array<char, 10> session, u64 seq_num) {
 
