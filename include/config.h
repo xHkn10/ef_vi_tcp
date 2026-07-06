@@ -2,7 +2,11 @@
 
 #include <etherfabric/ef_vi.h>
 
-#define DEBUG
+#define LOG_ERROR(fmt, ...) \
+    fprintf(stderr, "[ERROR] %s:%d: " fmt "\n", __FILE__, __LINE__, ##__VA_ARGS__)
+
+#define LOG_INFO(fmt, ...) \
+    fprintf(stdout, "[INFO]  %s:%d: " fmt "\n", __FILE__, __LINE__, ##__VA_ARGS__)
 
 constexpr int BUF_SZ = 2048;
 constexpr int PAGE_SZ = 4096 * 1024;

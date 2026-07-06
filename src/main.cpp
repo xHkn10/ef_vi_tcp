@@ -2,13 +2,12 @@
 #include <arpa/inet.h>
 #include <net/if.h>
 #include <iostream>
-#include <unistd.h>
 #include <vector>
 
 int main() {
     int ifindex = if_nametoindex("enp1s0f0");
     if (ifindex == 0) {
-        std::cerr << "Failed to find interface enp1s0f0\n";
+        LOG_ERROR("Failed to find interface enp1s0f0\n");
         return 1;
     }
 

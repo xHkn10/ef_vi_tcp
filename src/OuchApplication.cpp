@@ -1,12 +1,41 @@
 #include "OuchApplication.h"
-
 #include "SoupBinTcpSession.h"
 
-bool OuchApplication::enter_order(std::string_view token, u32 book_id, char side, u64 quantity, i32 price, u8 tif, u8 open_close, std::string_view account) {
-    if (!session || !session->is_logged_in())
-        return false;
+#include <iostream>
 
-    return true;
+bool OuchApplication::enter_order(std::string_view token, u32 book_id, char side, u64 quantity, i32 price, u8 tif, u8 open_close, std::string_view account) {
+    if (!session || !session->is_logged_in()) {
+        LOG_ERROR("Not logged into a session");
+        return false;
+    }
+    if (token.size() > sizeof(ouch_enter_order::order_token)) {
+        LOG_ERROR("Token size too big, cannot be %lu bytes", token.size());
+        return false;
+    }
+    if (account.size() > sizeof(ouch_enter_order::client_account)) {
+        LOG_ERROR("Client account size too big, cannot be %lu bytes", account.size());
+        return false;
+    }
+
+    ouch_enter_order order{
+        ENTER_ORDER,
+        {},
+        book_id,
+        side,
+        quantity,
+        price,
+        tif,
+        open_close,
+        {}
+    };
+
+    std::memcpy(&order.order_token, token.data(), token.size());
+    std::memset(&order.order_token + token.size(), ' ', sizeof(ouch_enter_order::order_token) - token.size());
+
+    std::memcpy(&order.client_account, account.data(), account.size());
+    std::memset(&order.client_account + account.size(), ' ', sizeof(ouch_enter_order::client_account) - account.size());
+
+    return session->send_unsequenced({});
 }
 
 bool OuchApplication::cancel_order(std::string_view token) {
