@@ -2,6 +2,7 @@
 #include <arpa/inet.h>
 #include <net/if.h>
 #include <iostream>
+#include <unistd.h>
 #include <vector>
 
 int main() {
@@ -15,11 +16,11 @@ int main() {
 
     u32 local_ip = inet_addr("10.10.10.1");
     u16 local_port = 50000;
-    u32 remote_ip = inet_addr("172.16.10.35");
+    u32 remote_ip = inet_addr("10.10.10.2");
     u16 remote_port = 12345;
-    // 10:7b:44:92:90:ca
+
     u8 smac[6] = {0x00, 0x0f, 0x53, 0xa3, 0xea, 0x40};
-    u8 dmac[6] = {0x10, 0x7b, 0x44, 0x92, 0x90, 0xca};
+    u8 dmac[6] = {0x00, 0x0f, 0x53, 0xa3, 0xea, 0x41};  // enp1s0f1's MAC
 
     sock.bind(ntohl(local_ip), local_port);
 
@@ -28,6 +29,12 @@ int main() {
         return 1;
     }
 
-    std::string packet = "sa dunya\n";
-    sock.send({reinterpret_cast<const std::byte*>(packet.data()), packet.size()});
+    std::string packet = "sa dunya0\n";
+
+    int cnt = 0;
+    while (true) {
+        sleep(1);
+        packet[packet.size() - 2] = cnt++;
+        sock.send({reinterpret_cast<const std::byte*>(packet.data()), packet.size()});
+    }
 }

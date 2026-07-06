@@ -2,6 +2,8 @@
 
 #include <etherfabric/ef_vi.h>
 
+#define DEBUG
+
 constexpr int BUF_SZ = 2048;
 constexpr int PAGE_SZ = 4096 * 1024;
 constexpr int N_RX_BUFS = 1024;

@@ -40,7 +40,7 @@ constexpr int CONNECT_TIMEOUT_MILLISECONDS = 500;
 struct eth_hdr {
     u8 dmac[6];
     u8 smac[6];
-    u16 ethertype; // ASSUMING ALWAYS 0x0800 (ipv4)
+    u16 ethertype = htons(0x0800); // ASSUMING ALWAYS 0x0800 (ipv4)
 } __attribute__((packed));
 
 // 20 bytes (no options)

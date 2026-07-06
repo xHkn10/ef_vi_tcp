@@ -111,6 +111,8 @@ bool SfTcpSocket::connect(u32 remote_ip, u16 remote_port, u8 dmac[6], u8 smac[6]
         poll_once();
     }
 
+
+
     return tcb.state == TcpState::ESTABLISHED;
 }
 
@@ -213,7 +215,7 @@ int SfTcpSocket::send(std::span<const std::byte> payload) {
 }
 
 void SfTcpSocket::write_headers(pkt_buf* pb) const {
-    eth_hdr eh{}; // TODO fill in smac dmac
+    eth_hdr eh{.ethertype = htons(0x0800)}; // TODO fill in smac dmac
 
     // NO ip options, NO ip fragmentation
     ip_hdr ih{
