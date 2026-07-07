@@ -148,13 +148,10 @@ namespace soup {
 
                     state = SessionState::Active;
                     fragmented_memcpy(reinterpret_cast<std::byte*>(session.data()), 10);
-                    int skipped_bytes = 0;
-                    while (skipped_bytes < 20 && static_cast<char>(*(cur_ptr + offset)) == ' ') {
-                        ++skipped_bytes;
-                        advance(1);
-                    }
+
                     char seq_num_bytes[21]{};
-                    fragmented_memcpy(reinterpret_cast<std::byte*>(seq_num_bytes), 20 - skipped_bytes);
+                    fragmented_memcpy(reinterpret_cast<std::byte*>(seq_num_bytes), 20);
+                    // strtoll skips whitespace
                     seq_num = strtoll(seq_num_bytes, nullptr, 10);
                     app.on_login_accepted(session, seq_num);
                     break;
