@@ -19,7 +19,7 @@ namespace ouch {
 
         void on_message(std::span<std::byte> ouch_msg);
 
-        void on_login_accepted(std::array<char, 10> session, u64 seq_num);
+        void on_login_accepted(const std::array<char, 10>& session, u64 seq_num);
         void on_login_rejected(char reject_reason);
 
         void on_order_accepted(const ouch_order_accepted& msg);

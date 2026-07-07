@@ -103,7 +103,7 @@ namespace ouch {
     }
 
     void OuchApplication::on_order_accepted(const ouch_order_accepted& msg) {
-        
+
     }
 
     void OuchApplication::on_order_rejected(const ouch_order_rejected& msg) {
@@ -126,7 +126,7 @@ namespace ouch {
 
     }
 
-    void OuchApplication::on_login_accepted(std::array<char, 10> session, u64 seq_num) {
+    void OuchApplication::on_login_accepted(const std::array<char, 10>& session, u64 seq_num) {
 
     }
 

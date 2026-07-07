@@ -9,15 +9,6 @@ namespace io {
         pkt_buf* head{};
         pkt_buf* tail{};
         int n_bytes{};
-
-        void append(pkt_buf* seg) {
-            if (!tail)
-                head = tail = seg;
-            else {
-                tail->meta.nxt = seg;
-                tail = seg;
-            }
-        }
     };
 
     struct tx_sgl {
