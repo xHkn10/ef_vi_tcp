@@ -1,4 +1,4 @@
-#include "SfTcpSocket.h"
+#include "tcp/socket.h"
 #include <arpa/inet.h>
 #include <net/if.h>
 #include <iostream>
@@ -11,7 +11,7 @@ int main() {
         return 1;
     }
 
-    SfTcpSocket sock{};
+    tcp::socket sock{};
 
     u32 local_ip = inet_addr("10.10.10.1");
     u16 local_port = 50000;

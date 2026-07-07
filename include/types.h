@@ -15,8 +15,6 @@ inline bool seq_less(u32 s1, u32 s2) {
     return (s1 != s2) && ((s2 - s1) < (1u << 31));
 }
 
-// host <-> network byte order. Unlike hton*/ntoh* this also covers 64-bit and
-// is constexpr; byteswap is an implementation detail (native LE assumed).
 template<std::integral T>
 constexpr T to_net(T v) noexcept {
     if constexpr (std::endian::native == std::endian::little)
