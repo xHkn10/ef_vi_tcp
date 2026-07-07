@@ -118,31 +118,31 @@ namespace soup {
 
         const int available_bytes = sgl.n_bytes;
         while (available_bytes - consumed_bytes >= 3) {
-            u32 soupbintcp_len = 0; // 16 bits actually
+            u32 soup_len = 0; // 16 bits actually
 
-            soupbintcp_len |= static_cast<u32>(*(cur_ptr + offset)) << 8;
+            soup_len |= static_cast<u32>(*(cur_ptr + offset)) << 8;
             advance(1);
 
-            soupbintcp_len |= static_cast<u32>(*(cur_ptr + offset));
+            soup_len |= static_cast<u32>(*(cur_ptr + offset));
             advance(1);
 
-            char soupbintcp_msg_type = static_cast<char>(*(cur_ptr + offset));
+            const char soup_msg_type = static_cast<char>(*(cur_ptr + offset));
             advance(1);
 
-            if (soupbintcp_len == 0) [[unlikely]] {
+            if (soup_len == 0) [[unlikely]] {
                 LOG_ERROR("0 length soupbintcp message received. Aborting...");
                 goto fatal;
             }
 
-            if (available_bytes - consumed_bytes < soupbintcp_len - 1) {
+            if (available_bytes - consumed_bytes < soup_len - 1) {
                 consumed_bytes -= 3;
                 break;
             }
 
-            switch (soupbintcp_msg_type) {
+            switch (soup_msg_type) {
                 case LOGIN_ACCEPTED: {
-                    if (soupbintcp_len != 31) {
-                        LOG_ERROR("Expected soupbintcp len 31 for LOGIN ACCEPTED, received %u. Aborting...", soupbintcp_len);
+                    if (soup_len != 31) {
+                        LOG_ERROR("Expected soupbintcp len 31 for LOGIN ACCEPTED, received %u. Aborting...", soup_len);
                         goto fatal;
                     }
 
@@ -160,8 +160,8 @@ namespace soup {
                     break;
                 }
                 case LOGIN_REJECTED: {
-                    if (soupbintcp_len != 2) {
-                        LOG_ERROR("Expected soupbintcp len 2 for LOGIN REJECTED, received %u. Aborting...", soupbintcp_len);
+                    if (soup_len != 2) {
+                        LOG_ERROR("Expected soupbintcp len 2 for LOGIN REJECTED, received %u. Aborting...", soup_len);
                         goto fatal;
                     }
 
@@ -174,15 +174,15 @@ namespace soup {
                     break;
                 }
                 case HEARTBEAT: {
-                    if (soupbintcp_len != 1) {
-                        LOG_ERROR("Expected soupbintcp len 1 for HEARTBEAT, received %u. Aborting...", soupbintcp_len);
+                    if (soup_len != 1) {
+                        LOG_ERROR("Expected soupbintcp len 1 for HEARTBEAT, received %u. Aborting...", soup_len);
                         goto fatal;
                     }
                     break;
                 }
                 case END_OF_SESSION: {
-                    if (soupbintcp_len != 1) {
-                        LOG_ERROR("Expected soupbintcp len 1 for END OF SESSION, received %u. Aborting...", soupbintcp_len);
+                    if (soup_len != 1) {
+                        LOG_ERROR("Expected soupbintcp len 1 for END OF SESSION, received %u. Aborting...", soup_len);
                         goto fatal;
                     }
                     state = SessionState::Disconnected;
@@ -190,12 +190,12 @@ namespace soup {
                     break;
                 }
                 case SEQUENCED_DATA: [[likely]] {
-                    if (soupbintcp_len < 2) [[unlikely]] {
-                        LOG_ERROR("soupbintcp_len cannot be %u bytes. Aborting...", soupbintcp_len);
+                    if (soup_len < 2) [[unlikely]] {
+                        LOG_ERROR("soup_len cannot be %u bytes. Aborting...", soup_len);
                         goto fatal;
                     }
 
-                    u32 ouch_len = soupbintcp_len - 1;
+                    const u32 ouch_len = soup_len - 1;
                     if (offset + ouch_len <= cur_buf->meta.payload.size()) {
                         app.on_message({cur_ptr + offset, ouch_len});
                         advance(ouch_len);
@@ -209,7 +209,7 @@ namespace soup {
                 }
                 default: {
                     LOG_WARN("Unknown soupbintcp msg type");
-                    fragment_aware_advance(soupbintcp_len - 1);
+                    fragment_aware_advance(soup_len - 1);
                     break;
                 }
             }
@@ -257,7 +257,7 @@ namespace soup {
 
         const u64 tx_elapsed_cycles = io::cycle_timer::now() - last_tx_cycles;
         if (tx_elapsed_cycles >= HEARTBEAT_MS * io::cycle_timer::cycles_per_ms)
-            send_heartbeat();
+            beat_heart();
 
         const u64 rx_elapsed_cycles = io::cycle_timer::now() - last_rx_cycles;
         if (rx_elapsed_cycles >= RX_TIMEOUT_MS * io::cycle_timer::cycles_per_ms) {
@@ -268,7 +268,7 @@ namespace soup {
         }
     }
 
-    bool SoupSession::send_heartbeat() {
+    bool SoupSession::beat_heart() {
         std::array<std::byte, 3> heartbeat{};
         *reinterpret_cast<u16*>(heartbeat.data()) = to_net<u16>(1);
         heartbeat[2] = static_cast<std::byte>('R');

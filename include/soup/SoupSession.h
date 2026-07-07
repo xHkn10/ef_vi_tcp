@@ -36,7 +36,7 @@ namespace soup {
         [[nodiscard]] bool is_logged_in() const;
 
     private:
-        bool send_heartbeat();
+        bool beat_heart();
         void handle_rx();
         void check_timers();
 
