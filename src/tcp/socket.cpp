@@ -201,10 +201,10 @@ namespace tcp {
         int n_bytes_sent = 0;
 
         while (n_bytes_sent < payload.size() && !ctx.tx_free_stk.empty() && ef_vi_transmit_space(&ctx.vi) > 0) {
-            int id = pop_back(ctx.tx_free_stk);
+            const int id = pop_back(ctx.tx_free_stk);
             io::pkt_buf* pb = ctx.tx_pkt_bufs[id];
 
-            int chunk = std::min(TCP_MAX_PAYLOAD_SZ, static_cast<int>(payload.size()) - n_bytes_sent);
+            const int chunk = std::min(TCP_MAX_PAYLOAD_SZ, static_cast<int>(payload.size()) - n_bytes_sent);
             std::memcpy(pb->dma_buf + TCP_TOTAL_HDR_SZ, payload.data() + n_bytes_sent, chunk);
             stamp_and_send<true>(pb, chunk);
 
@@ -254,8 +254,8 @@ namespace tcp {
     int socket::receive(std::span<std::byte> spn) {
         poll_once();
 
-        io::rx_sgl sgl = tcb.hand_out_ready();
-        io::pkt_buf* cur_rx = sgl.head;
+        auto [head, tail, n_bytes] = tcb.hand_out_ready();
+        io::pkt_buf* cur_rx = head;
 
         int n_bytes_left = spn.size();
         while (cur_rx != nullptr && n_bytes_left > 0) {
@@ -271,11 +271,11 @@ namespace tcp {
             }
         }
 
-        int n_bytes_read = static_cast<int>(spn.size()) - n_bytes_left;
+        const int n_bytes_read = static_cast<int>(spn.size()) - n_bytes_left;
 
         if (cur_rx) {
-            tcb.rx_ready_head = cur_rx, tcb.rx_ready_tail = sgl.tail;
-            tcb.ready_bytes = sgl.n_bytes - n_bytes_read;
+            tcb.rx_ready_head = cur_rx, tcb.rx_ready_tail = tail;
+            tcb.ready_bytes = n_bytes - n_bytes_read;
         } else
             tcb.rx_ready_head = tcb.rx_ready_tail = nullptr;
 
@@ -310,7 +310,7 @@ namespace tcp {
 
         if (cur_rx) {
             tcb.rx_ready_head = cur_rx, tcb.rx_ready_tail = sgl.tail;
-            int actual_consumed = bytes_to_consume - bytes_left;
+            const int actual_consumed = bytes_to_consume - bytes_left;
             tcb.ready_bytes = sgl.n_bytes - actual_consumed;
         } else {
             tcb.rx_ready_head = tcb.rx_ready_tail = nullptr;
@@ -353,7 +353,7 @@ namespace tcp {
         if (ctx.tx_free_stk.empty())
             return nullptr;
 
-        int id = pop_back(ctx.tx_free_stk);
+        const int id = pop_back(ctx.tx_free_stk);
         io::pkt_buf* pb = ctx.tx_pkt_bufs[id];
         return pb;
     }
@@ -362,7 +362,7 @@ namespace tcp {
         io::tx_sgl sgl{};
 
         for (int left = n_bytes; left > 0 && !ctx.tx_free_stk.empty(); left -= TCP_MAX_PAYLOAD_SZ) {
-            int id = pop_back(ctx.tx_free_stk);
+            const int id = pop_back(ctx.tx_free_stk);
             io::pkt_buf* pb = ctx.tx_pkt_bufs[id];
             sgl.segments.push_back(pb);
             sgl.n_bytes += TCP_MAX_PAYLOAD_SZ;
@@ -381,7 +381,7 @@ namespace tcp {
         if (cnt == 0)
             return;
         for (int i = 0; i < cnt; ++i) {
-            int id = pop_back(ctx.rx_free_stk);
+            const int id = pop_back(ctx.rx_free_stk);
             ef_vi_receive_init(&ctx.vi, ctx.rx_pkt_bufs[id]->dma_buf_addr, id);
         }
         ef_vi_receive_push(&ctx.vi);
@@ -391,7 +391,7 @@ namespace tcp {
         // best effort
         if (ctx.tx_free_stk.empty() || ef_vi_transmit_space(&ctx.vi) == 0)
             return;
-        int id = pop_back(ctx.tx_free_stk);
+        const int id = pop_back(ctx.tx_free_stk);
         io::pkt_buf* pb = ctx.tx_pkt_bufs[id];
 
         net::get_ip_hdr(pb)->len = to_net<u16>(IP_HDR_SZ + TCP_HDR_SZ);
@@ -409,7 +409,7 @@ namespace tcp {
 
     void socket::poll_once() {
         ef_event events[io::POLL_BATCH_SZ];
-        int n_events = ef_eventq_poll(&ctx.vi, events, io::POLL_BATCH_SZ);
+        const int n_events = ef_eventq_poll(&ctx.vi, events, io::POLL_BATCH_SZ);
         for (auto& event : events | std::views::take(n_events)) {
             switch (EF_EVENT_TYPE(event)) {
                 case EF_EVENT_TYPE_RX_DISCARD: {
@@ -421,7 +421,7 @@ namespace tcp {
                 case EF_EVENT_TYPE_RX: {
                     int id = EF_EVENT_RX_RQ_ID(event);
                     io::pkt_buf* pb = ctx.rx_pkt_bufs[id];
-                    net::tcp_hdr* tcp = net::get_tcp_hdr(pb);
+                    const net::tcp_hdr* tcp = net::get_tcp_hdr(pb);
 
                     // RST
                     if (tcp->control & RST_FLAG) {
@@ -462,7 +462,7 @@ namespace tcp {
                 case EF_EVENT_TYPE_TX_ERROR:
                 case EF_EVENT_TYPE_TX: {
                     ef_request_id ids[EF_VI_TRANSMIT_BATCH];
-                    int n_ids = ef_vi_transmit_unbundle(&ctx.vi, &event, ids);
+                    const int n_ids = ef_vi_transmit_unbundle(&ctx.vi, &event, ids);
                     for (auto id : ids | std::views::take(n_ids)) {
                         io::pkt_buf* pb = ctx.tx_pkt_bufs[id];
                         if (--pb->meta.tx_ref_cnt == 0)
@@ -488,6 +488,7 @@ namespace tcp {
         refill_rx_ring();
     }
 
+    // tcb.tx_unacked should be checked it's empty before calling
     void socket::retransmit_head() {
         // retry in next poll_once
         if (ef_vi_transmit_space(&ctx.vi) == 0)

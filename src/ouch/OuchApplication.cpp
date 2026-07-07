@@ -138,4 +138,3 @@ namespace ouch {
         session = &s;
     }
 }
-
