@@ -14,6 +14,11 @@ namespace soup {
     constexpr char SEQUENCED_DATA = 'S';
     constexpr char UNSEQUENCED_DATA = 'U';
 
+    constexpr int MAX_USERNAME_SZ = 6;
+    constexpr int MAX_PASSWORD_SZ = 10;
+    constexpr int MAX_SESSION_SZ = 10;
+    constexpr int MAX_SEQUENCE_SZ = 20;
+
     enum class SessionState {
         Disconnected,
         LoggingIn,

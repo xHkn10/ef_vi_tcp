@@ -8,20 +8,20 @@ namespace soup {
     }
 
     bool SoupSession::login(std::string_view username, std::string_view password, std::string_view session, std::string_view seq) {
-        if (username.size() > 6) {
-            LOG_ERROR("Username cannot be longer than 6 bytes");
+        if (username.size() > MAX_USERNAME_SZ) {
+            LOG_ERROR("Username cannot be longer than %d bytes", MAX_USERNAME_SZ);
             return false;
         }
-        if (password.size() > 10) {
-            LOG_ERROR("Password cannot be longer than 10 bytes");
+        if (password.size() > MAX_PASSWORD_SZ) {
+            LOG_ERROR("Password cannot be longer than %d bytes", MAX_PASSWORD_SZ);
             return false;
         }
-        if (session.size() > 10) {
-            LOG_ERROR("Session cannot be longer than 10 bytes");
+        if (session.size() > MAX_SESSION_SZ) {
+            LOG_ERROR("Session cannot be longer than %d bytes", MAX_SESSION_SZ);
             return false;
         }
-        if (seq.size() > 20) {
-            LOG_ERROR("Sequence cannot be longer than 20 bytes");
+        if (seq.size() > MAX_SEQUENCE_SZ) {
+            LOG_ERROR("Sequence cannot be longer than %d bytes", MAX_SEQUENCE_SZ);
             return false;
         }
 
