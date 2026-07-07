@@ -56,7 +56,7 @@ namespace tcp {
         io::rx_sgl hand_out_ready() {
             auto* tmp_head = rx_ready_head;
             auto* tmp_tail = rx_ready_tail;
-            auto n = ready_bytes;
+            const auto n = ready_bytes;
             rx_ready_head = rx_ready_tail = nullptr;
             ready_bytes = 0;
             return {tmp_head, tmp_tail, n};
@@ -77,7 +77,7 @@ namespace tcp {
         void process(std::vector<int>& rx_free_stk) {
             while (!rx_out_of_order.empty()) {
                 io::pkt_buf* rx_seg = rx_out_of_order.peek_front();
-                net::tcp_hdr* tcp = net::get_tcp_hdr(rx_seg);
+                const net::tcp_hdr* tcp = net::get_tcp_hdr(rx_seg);
 
                 if (rx_seg->meta.seq == RCV_NXT) {
                     if (!rx_seg->meta.payload.empty()) {
