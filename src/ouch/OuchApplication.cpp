@@ -102,19 +102,19 @@ namespace ouch {
         }
     }
 
-    void OuchApplication::on_order_accepted(const ouch_order_accepted &msg) {
+    void OuchApplication::on_order_accepted(const ouch_order_accepted& msg) {
+        
+    }
+
+    void OuchApplication::on_order_rejected(const ouch_order_rejected& msg) {
 
     }
 
-    void OuchApplication::on_order_rejected(const ouch_order_rejected &msg) {
+    void OuchApplication::on_order_executed(const ouch_order_executed& msg) {
 
     }
 
-    void OuchApplication::on_order_executed(const ouch_order_executed &msg) {
-
-    }
-
-    void OuchApplication::on_cancel_accepted(const ouch_cancel_accepted &msg) {
+    void OuchApplication::on_cancel_accepted(const ouch_cancel_accepted& msg) {
 
     }
 
@@ -134,7 +134,7 @@ namespace ouch {
 
     }
 
-    void OuchApplication::attach(soup::SoupSession &s) {
+    void OuchApplication::attach(soup::SoupSession& s) {
         session = &s;
     }
 }

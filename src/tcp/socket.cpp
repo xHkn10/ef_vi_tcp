@@ -292,7 +292,7 @@ namespace tcp {
         return tcb.hand_out_ready();
     }
 
-    int socket::consume(io::rx_sgl sgl, int bytes_to_consume) {
+    int socket::consume(const io::rx_sgl& sgl, const int bytes_to_consume) {
         int bytes_left = bytes_to_consume;
         io::pkt_buf* cur_rx = sgl.head;
 

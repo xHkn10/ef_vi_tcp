@@ -67,7 +67,7 @@ namespace soup {
     }
 
     void SoupSession::handle_rx() {
-        io::rx_sgl sgl = sock.receive_available();
+        const io::rx_sgl sgl = sock.receive_available();
 
         auto* cur_buf = sgl.head;
 
@@ -80,7 +80,7 @@ namespace soup {
         u32 offset = 0;
         u32 consumed_bytes = 0;
 
-        auto advance = [&](u32 steps) {
+        auto advance = [&](const u32 steps) {
             offset += steps;
             consumed_bytes += steps;
 
@@ -106,7 +106,7 @@ namespace soup {
         auto fragmented_memcpy = [&](std::byte* dst, u32 n_bytes) {
             u32 dst_offset = 0;
             while (n_bytes > 0) {
-                u32 chunk_sz = std::min<u32>(n_bytes, cur_buf->meta.payload.size() - offset);
+                const u32 chunk_sz = std::min<u32>(n_bytes, cur_buf->meta.payload.size() - offset);
                 std::memcpy(dst + dst_offset, cur_ptr + offset, chunk_sz);
 
                 n_bytes -= chunk_sz;
@@ -116,7 +116,7 @@ namespace soup {
             }
         };
 
-        int available_bytes = sgl.n_bytes;
+        const int available_bytes = sgl.n_bytes;
         while (available_bytes - consumed_bytes >= 3) {
             u32 soupbintcp_len = 0; // 16 bits actually
 
@@ -166,7 +166,7 @@ namespace soup {
                     }
 
                     state = SessionState::Disconnected;
-                    char rej_reason = static_cast<char>(*(cur_ptr + offset));
+                    const char rej_reason = static_cast<char>(*(cur_ptr + offset));
                     advance(1);
                     LOG_INFO("Reject reason: %c", rej_reason);
 
@@ -194,8 +194,8 @@ namespace soup {
                         LOG_ERROR("soupbintcp_len cannot be %u bytes. Aborting...", soupbintcp_len);
                         goto fatal;
                     }
-                    u32 ouch_len = soupbintcp_len - 1;
 
+                    u32 ouch_len = soupbintcp_len - 1;
                     if (offset + ouch_len <= cur_buf->meta.payload.size()) {
                         app.on_message({cur_ptr + offset, ouch_len});
                         advance(ouch_len);
@@ -231,8 +231,8 @@ namespace soup {
             return false;
         }
 
-        u32 msg_len = ouch_payload.size() + 1;  // 16 bits actually
-        u32 total_len = msg_len + 2;
+        const u32 msg_len = ouch_payload.size() + 1;  // 16 bits actually
+        const u32 total_len = msg_len + 2;
         std::array<std::byte, ouch::MAX_OUCH_MSG_SZ + 3> packet{};
 
         *reinterpret_cast<u16*>(packet.data()) = to_net<u16>(msg_len);
@@ -255,11 +255,11 @@ namespace soup {
         if (state != SessionState::Active && state != SessionState::LoggingIn)
             return;
 
-        u64 tx_elapsed_cycles = io::cycle_timer::now() - last_tx_cycles;
+        const u64 tx_elapsed_cycles = io::cycle_timer::now() - last_tx_cycles;
         if (tx_elapsed_cycles >= HEARTBEAT_MS * io::cycle_timer::cycles_per_ms)
             send_heartbeat();
 
-        u64 rx_elapsed_cycles = io::cycle_timer::now() - last_rx_cycles;
+        const u64 rx_elapsed_cycles = io::cycle_timer::now() - last_rx_cycles;
         if (rx_elapsed_cycles >= RX_TIMEOUT_MS * io::cycle_timer::cycles_per_ms) {
             LOG_ERROR("Server stopped responding. Connection lost.");
             state = SessionState::Disconnected;

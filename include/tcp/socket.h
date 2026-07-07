@@ -19,7 +19,7 @@ namespace tcp {
 
         io::pkt_buf* receive_single();
         io::rx_sgl receive_available();
-        int consume(io::rx_sgl, int bytes_to_consume);
+        int consume(const io::rx_sgl&, int bytes_to_consume);
         int receive(std::span<std::byte>);
 
         bool send(io::pkt_buf*);
