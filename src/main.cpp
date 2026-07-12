@@ -1,8 +1,8 @@
 #include "tcp/socket.h"
+
 #include <arpa/inet.h>
 #include <net/if.h>
 #include <iostream>
-#include <vector>
 
 int main() {
     int ifindex = if_nametoindex("enp1s0f0");

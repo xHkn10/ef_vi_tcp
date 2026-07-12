@@ -1,5 +1,6 @@
 #include "soup/SoupSession.h"
 
+#include <cstring>
 #include <netinet/in.h>
 
 namespace soup {

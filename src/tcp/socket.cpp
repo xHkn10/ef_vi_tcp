@@ -9,7 +9,7 @@
 #include <etherfabric/ef_vi.h>
 #include <chrono>
 
-#include "io/efvi_stuff.h"
+#include "io/context.h"
 #include "tcp/socket.h"
 #include "io/config.h"
 #include "types.h"
@@ -26,7 +26,7 @@ namespace {
 
 namespace tcp {
     socket::socket() {
-        if (int rc = ctx.init_ef_vi(); rc < 0)
+        if (int rc = ctx.init(); rc < 0)
             throw std::runtime_error("socket couldn't initialized, rc = " + std::to_string(rc));
 
         tcb = {};
@@ -45,17 +45,8 @@ namespace tcp {
     }
 
     bool socket::bind(u32 local_ip, u16 local_port) {
-        ef_filter_spec filter_spec;
-        ef_filter_spec_init(&filter_spec, EF_FILTER_FLAG_NONE);
-
-        // ef_filter_spec_set_ip4_local expects in network order
-        if (int rc = ef_filter_spec_set_ip4_local(&filter_spec, IPPROTO_TCP, to_net(local_ip), to_net(local_port)); rc < 0) {
-            LOG_ERROR("ef_filter_spec_set_ip4_local: %s", strerror(-rc));
-            return false;
-        }
-
-        if (int rc = ef_vi_filter_add(&ctx.vi, ctx.dh, &filter_spec, nullptr); rc < 0) {
-            LOG_ERROR("ef_vi_filter_add: %s", strerror(-rc));
+        if (int rc = ctx.add_ip4_tcp_filter(local_ip, local_port); rc < 0) {
+            LOG_ERROR("add_ip4_tcp_filter: %s", strerror(-rc));
             return false;
         }
 
@@ -99,7 +90,7 @@ namespace tcp {
             pb->meta.tx_ref_cnt = 1;
             net::get_tcp_hdr(pb)->control = SYN_FLAG;
             net::get_ip_hdr(pb)->len = to_net<u16>(TCP_HDR_SZ + IP_HDR_SZ);
-            ef_vi_transmit(&ctx.vi, pb->dma_buf_addr, TCP_TOTAL_HDR_SZ, id);
+            ctx.transmit(pb->dma_buf_addr, TCP_TOTAL_HDR_SZ, id);
         }
 
         // spin until poll_once transitions out of SYN_SENT (to ESTABLISHED, ideally)
@@ -121,7 +112,7 @@ namespace tcp {
     bool socket::close() {
         if (tcb.state != TcpState::ESTABLISHED && tcb.state != TcpState::CLOSE_WAIT)
             return false;
-        if (ctx.tx_free_stk.empty() || ef_vi_transmit_space(&ctx.vi) == 0)
+        if (ctx.tx_free_stk.empty() || ctx.transmit_space() == 0)
             return false;
 
         int id = pop_back(ctx.tx_free_stk);
@@ -140,14 +131,14 @@ namespace tcp {
 
         tcb.state = tcb.state == TcpState::ESTABLISHED ? TcpState::FIN_WAIT1 : TcpState::LAST_ACK;
 
-        ef_vi_transmit(&ctx.vi, pb->dma_buf_addr, TCP_TOTAL_HDR_SZ, id);
+        ctx.transmit(pb->dma_buf_addr, TCP_TOTAL_HDR_SZ, id);
         return true;
     }
 
     bool socket::abort() {
         if (tcb.state != TcpState::ESTABLISHED)
             return false;
-        if (ctx.tx_free_stk.empty() || ef_vi_transmit_space(&ctx.vi) == 0)
+        if (ctx.tx_free_stk.empty() || ctx.transmit_space() == 0)
             return false; // best effort
 
         tcb.state = TcpState::CLOSED;
@@ -165,13 +156,13 @@ namespace tcp {
 
         net::get_ip_hdr(pb)->len = to_net<u16>(IP_HDR_SZ + TCP_HDR_SZ);
 
-        ef_vi_transmit(&ctx.vi, pb->dma_buf_addr, TCP_TOTAL_HDR_SZ, id);
+        ctx.transmit(pb->dma_buf_addr, TCP_TOTAL_HDR_SZ, id);
 
         return true;
     }
 
     bool socket::send(io::pkt_buf* pb) {
-        if (tcb.state != TcpState::ESTABLISHED || ef_vi_transmit_space(&ctx.vi) == 0)
+        if (tcb.state != TcpState::ESTABLISHED || ctx.transmit_space() == 0)
             return false;
         stamp_and_send<false>(pb, pb->meta.payload.size());
         return true;
@@ -184,13 +175,13 @@ namespace tcp {
             return false;
 
         // TODO should we partially send the segments?
-        if (ef_vi_transmit_space(&ctx.vi) < sgl.segments.size())
+        if (ctx.transmit_space() < sgl.segments.size())
             return false;
 
         for (io::pkt_buf* seg : sgl.segments)
             stamp_and_send<true>(seg, seg->meta.payload.size());
 
-        ef_vi_transmit_push(&ctx.vi);
+        ctx.transmit_push();
         return true;
     }
 
@@ -200,7 +191,7 @@ namespace tcp {
 
         int n_bytes_sent = 0;
 
-        while (n_bytes_sent < payload.size() && !ctx.tx_free_stk.empty() && ef_vi_transmit_space(&ctx.vi) > 0) {
+        while (n_bytes_sent < payload.size() && !ctx.tx_free_stk.empty() && ctx.transmit_space() > 0) {
             const int id = pop_back(ctx.tx_free_stk);
             io::pkt_buf* pb = ctx.tx_pkt_bufs[id];
 
@@ -211,7 +202,7 @@ namespace tcp {
             n_bytes_sent += chunk;
         }
 
-        ef_vi_transmit_push(&ctx.vi);
+        ctx.transmit_push();
 
         return n_bytes_sent;
     }
@@ -249,7 +240,6 @@ namespace tcp {
         *net::get_ip_hdr(pb) = ih;
         *net::get_tcp_hdr(pb) = th;
     }
-
 
     int socket::receive(std::span<std::byte> spn) {
         poll_once();
@@ -343,9 +333,9 @@ namespace tcp {
             tcb.rto_deadline_cycles = io::cycle_timer::now() + io::cycle_timer::cycles_per_ms * RTO_MILLISECONDS;
 
         if constexpr (queue)
-            ef_vi_transmit_init(&ctx.vi, pb->dma_buf_addr, TCP_TOTAL_HDR_SZ + payload_sz, pb->id);
+            ctx.transmit_init(pb->dma_buf_addr, TCP_TOTAL_HDR_SZ + payload_sz, pb->id);
         else
-            ef_vi_transmit(&ctx.vi, pb->dma_buf_addr, TCP_TOTAL_HDR_SZ + payload_sz, pb->id);
+            ctx.transmit(pb->dma_buf_addr, TCP_TOTAL_HDR_SZ + payload_sz, pb->id);
     }
 
 
@@ -376,20 +366,20 @@ namespace tcp {
     }
 
     void socket::refill_rx_ring() {
-        int cnt = std::min<int>(ef_vi_receive_space(&ctx.vi), ctx.rx_free_stk.size());
+        int cnt = std::min<int>(ctx.receive_space(), ctx.rx_free_stk.size());
         cnt &= ~(io::REFILL_BATCH_SZ - 1);
         if (cnt == 0)
             return;
         for (int i = 0; i < cnt; ++i) {
             const int id = pop_back(ctx.rx_free_stk);
-            ef_vi_receive_init(&ctx.vi, ctx.rx_pkt_bufs[id]->dma_buf_addr, id);
+            ctx.receive_init(ctx.rx_pkt_bufs[id]->dma_buf_addr, id);
         }
-        ef_vi_receive_push(&ctx.vi);
+        ctx.receive_push();
     }
 
     void socket::send_pure_ack() {
         // best effort
-        if (ctx.tx_free_stk.empty() || ef_vi_transmit_space(&ctx.vi) == 0)
+        if (ctx.tx_free_stk.empty() || ctx.transmit_space() == 0)
             return;
         const int id = pop_back(ctx.tx_free_stk);
         io::pkt_buf* pb = ctx.tx_pkt_bufs[id];
@@ -404,12 +394,12 @@ namespace tcp {
         tcb.need_ack = tcb.immediate_ack_req = false;
         pb->meta.tx_ref_cnt = 1;
 
-        ef_vi_transmit(&ctx.vi, pb->dma_buf_addr, TCP_TOTAL_HDR_SZ, id);
+        ctx.transmit(pb->dma_buf_addr, TCP_TOTAL_HDR_SZ, id);
     }
 
     void socket::poll_once() {
         ef_event events[io::POLL_BATCH_SZ];
-        const int n_events = ef_eventq_poll(&ctx.vi, events, io::POLL_BATCH_SZ);
+        const int n_events = ctx.eventq_poll(events, io::POLL_BATCH_SZ);
         for (auto& event : events | std::views::take(n_events)) {
             switch (EF_EVENT_TYPE(event)) {
                 case EF_EVENT_TYPE_RX_DISCARD: {
@@ -462,7 +452,7 @@ namespace tcp {
                 case EF_EVENT_TYPE_TX_ERROR:
                 case EF_EVENT_TYPE_TX: {
                     ef_request_id ids[EF_VI_TRANSMIT_BATCH];
-                    const int n_ids = ef_vi_transmit_unbundle(&ctx.vi, &event, ids);
+                    const int n_ids = ctx.transmit_unbundle(event, ids);
                     for (auto id : ids | std::views::take(n_ids)) {
                         io::pkt_buf* pb = ctx.tx_pkt_bufs[id];
                         if (--pb->meta.tx_ref_cnt == 0)
@@ -491,7 +481,7 @@ namespace tcp {
     // tcb.tx_unacked should be checked it's empty before calling
     void socket::retransmit_head() {
         // retry in next poll_once
-        if (ef_vi_transmit_space(&ctx.vi) == 0)
+        if (ctx.transmit_space() == 0)
             return;
 
         io::pkt_buf* pb = tcb.tx_unacked.peek_front();
@@ -499,7 +489,7 @@ namespace tcp {
         tcp->ack_num = to_net(tcb.RCV_NXT);
         ++(pb->meta.tx_ref_cnt);
 
-        ef_vi_transmit(&ctx.vi, pb->dma_buf_addr, TCP_TOTAL_HDR_SZ + pb->meta.payload.size(), pb->id);
+        ctx.transmit(pb->dma_buf_addr, TCP_TOTAL_HDR_SZ + pb->meta.payload.size(), pb->id);
 
         tcb.rto_deadline_cycles = io::cycle_timer::now() + io::cycle_timer::cycles_per_ms * RTO_MILLISECONDS;
     }

@@ -1,7 +1,8 @@
+#include <cstring>
+#include <iostream>
+
 #include "ouch/OuchApplication.h"
 #include "soup/SoupSession.h"
-
-#include <iostream>
 
 namespace ouch {
     bool OuchApplication::enter_order(std::string_view token, u32 book_id, char side, u64 quantity, i32 price, u8 tif, u8 open_close, std::string_view account) {

@@ -37,6 +37,13 @@ namespace tcp {
             return true;
         }
 
+        [[nodiscard]] int size() const {
+            int sz = 0;
+            for (auto cur = head; cur; cur = cur->meta.nxt)
+                ++sz;
+            return sz;
+        }
+
     private:
         io::pkt_buf* head = nullptr;
     };

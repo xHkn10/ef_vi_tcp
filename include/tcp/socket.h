@@ -54,5 +54,11 @@ namespace tcp {
         u16 remote_port;
 
         bool is_bound;
+
+#ifdef TCP_TEST_HOOKS
+    public:
+        io::context& test_ctx() { return ctx; }
+        TCB& test_tcb() { return tcb; }
+#endif
     };
 }
