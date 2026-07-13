@@ -452,7 +452,7 @@ namespace tcp {
         if (tcb.immediate_ack_req || (tcb.need_ack && io::cycle_timer::now() >= tcb.ack_deadline_cycles))
             send_pure_ack();
 
-        if (!tcb.tx_unacked.empty() && io::cycle_timer::now() > tcb.rto_deadline_cycles)
+        if (!tcb.tx_unacked.empty() && io::cycle_timer::now() >= tcb.rto_deadline_cycles)
             retransmit_head();
 
         refill_rx_ring();

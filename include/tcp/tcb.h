@@ -46,6 +46,7 @@ namespace tcp {
         u32 RCV_WND;
 
         u32 ISS;
+        u32 ISR;
 
         bool need_ack;
         bool immediate_ack_req;
@@ -110,6 +111,7 @@ namespace tcp {
         }
 
         void complete_handshake(u32 syn_ack_seq, std::vector<int>& tx_free_stk) {
+            ISR = syn_ack_seq;
             RCV_NXT = syn_ack_seq + 1;
             state = fsm::ESTABLISHED;
             handle_ack(ISS + 1, tx_free_stk);

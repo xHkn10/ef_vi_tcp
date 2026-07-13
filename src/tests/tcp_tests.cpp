@@ -73,6 +73,11 @@ namespace {
     CHECK(sock.test_tcb().state == tcp::fsm::ESTABLISHED); \
     CHECK(cap.size() == 2);
 
+
+static auto make_byte_span = [](auto& container) {
+    return std::span{reinterpret_cast<std::byte*>(container.data()), container.size()};
+};
+
 void test_handshake() {
     establish
 
@@ -292,7 +297,7 @@ void test_receive() {
     establish
 
     std::string msg = "sa dunya!";
-    peer.inject(sock, ACK_FLAG, 0, std::as_bytes(std::span{msg.data(), msg.size()}));
+    peer.inject(sock, ACK_FLAG, 0, make_byte_span(msg));
 
     sock.poll();
 
@@ -304,7 +309,7 @@ void test_receive() {
     CHECK(cap.size() == 3);
 
     std::string rcv_buffer(10, 0);
-    int rcvd_sz = sock.receive({reinterpret_cast<std::byte*>(rcv_buffer.data()), rcv_buffer.size()});
+    const int rcvd_sz = sock.receive(make_byte_span(rcv_buffer));
     CHECK(rcvd_sz == msg.size());
 
     CHECK(std::memcmp(msg.data(), rcv_buffer.data(), msg.size()) == 0);
@@ -340,7 +345,7 @@ void test_ooo_receive() {
 
     std::string rcvd_msg(msg.size(), 0);
 
-    CHECK(sock.receive(std::span{reinterpret_cast<std::byte*>(rcvd_msg.data()), rcvd_msg.size()}) == msg.size());
+    CHECK(sock.receive(make_byte_span(rcvd_msg)) == msg.size());
 
     CHECK(std::memcmp(msg.data(), rcvd_msg.data(), msg.size()) == 0);
 
@@ -352,8 +357,7 @@ void test_rto() {
 
     std::array snd{0x01, 0x31, 0x10, 0xA, 0xB};
     u32 cur_seq = sock.test_tcb().SND_NXT;
-    CHECK(sock.send({reinterpret_cast<std::byte*>(snd.data()), snd.size()}) == snd.size());
-
+    CHECK(sock.send(make_byte_span(snd)) == snd.size());
 
     int needed_sz = cap.size();
 
@@ -373,6 +377,28 @@ void test_rto() {
     resource_checks
 }
 
+void duplicate_send() {
+    establish
+
+    std::string msg = "hakan akbıyık bulltech stajyer";
+    peer.inject(sock, ACK_FLAG, 0, make_byte_span(msg));
+    sock.poll();
+    CHECK(cap.size() == 2);
+    io::cycle_timer::elapse(DELAYED_ACK_TIMEOUT_MILLISECONDS);
+    sock.poll();
+    CHECK(cap.size() == 3);
+
+    for (int i = 0; i < 100; ++i) {
+        peer.seq = 0;
+        peer.inject(sock, ACK_FLAG, 0, make_byte_span(msg));
+        sock.poll();
+        CHECK(cap.size() == 4 + i);
+        CHECK(from_net(tcp_of(cap.back())->ack_num) == sock.test_tcb().ISR + 1 + msg.size());
+    }
+
+    resource_checks
+}
+
 int main() {
     test_handshake();
     test_rst_during_handshake();
@@ -386,5 +412,6 @@ int main() {
     test_receive();
     test_ooo_receive();
     test_rto();
+    duplicate_send();
     printf("%d errors\n", g_failures);
 }
