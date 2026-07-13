@@ -319,10 +319,22 @@ void test_ooo_receive() {
     std::string msg = "hakan akbıyık bulltech";
 
     u32 start = peer.seq;
+    u32 rcv_nxt = sock.test_tcb().RCV_NXT;
+    int needed_sz = cap.size();
     for (int i = 0; i < msg.size(); ++i) {
         std::byte b[1] = {static_cast<std::byte>(msg[msg.size() - 1 - i])};
+
         peer.seq = start + msg.size() - 1 - i;
         peer.inject(sock, ACK_FLAG, 0, b);
+
+        io::cycle_timer::elapse(DELAYED_ACK_TIMEOUT_MILLISECONDS);
+        sock.poll();
+
+        if (i + 1 != msg.size()) {
+            CHECK(cap.size() == ++needed_sz);
+            CHECK(sock.receive_available().n_bytes == 0);
+            CHECK(from_net(tcp_of(cap.back())->ack_num) == rcv_nxt);
+        }
     }
 
     sock.poll();
@@ -335,7 +347,6 @@ void test_ooo_receive() {
 
     resource_checks
 }
-
 
 void test_rto() {
     establish
@@ -362,7 +373,6 @@ void test_rto() {
 
     resource_checks
 }
-
 
 int main() {
     test_handshake();
