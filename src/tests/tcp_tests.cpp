@@ -46,6 +46,11 @@ namespace {
     net::ip_hdr* ip_of(std::vector<std::byte>& packet) {
         return reinterpret_cast<net::ip_hdr*>(packet.data() + ETH_HDR_SZ);
     }
+    std::span<std::byte> payload_of(std::vector<std::byte>& packet) {
+        const int tcp_hdr_len = (tcp_of(packet)->doffset_reserved >> 4) * 4;
+        const u32 payload_len = from_net(ip_of(packet)->len) - IP_HDR_SZ - tcp_hdr_len;
+        return {reinterpret_cast<std::byte*>(tcp_of(packet)) + tcp_hdr_len, payload_len};
+    }
 }
 
 #define resource_checks \
@@ -208,6 +213,37 @@ void test_active_abort() {
     resource_checks
 }
 
+void test_inplace_send() {
+    io::test::test_reset();
+
+    tcp::socket sock;
+    fake_peer peer;
+    auto& cap = io::test::g_sent_captured;
+
+    establish
+
+    auto* pb = sock.get_tx_buf();
+    std::string_view msg = "sa dunya";
+    std::memcpy(pb->meta.payload.data(), msg.data(), msg.size());
+    pb->meta.payload = {pb->dma_buf, msg.size()};
+
+    CHECK(sock.send(pb));
+
+    CHECK(cap.size() == 3);
+
+    const int ip_len_field = from_net(ip_of(cap.back())->len);
+    const int tcp_hdr_len = (tcp_of(cap.back())->doffset_reserved >> 4) * 4;
+    const int rcvd_sz = ip_len_field - IP_HDR_SZ - tcp_hdr_len;
+
+    CHECK(rcvd_sz == msg.size());
+
+    auto payload = payload_of(cap.back());
+    auto is_eq = std::memcmp(msg.data(), payload.data(), msg.size());
+    CHECK(is_eq == 0);
+}
+
+
+
 int main() {
     test_handshake();
     test_rst_during_handshake();
@@ -215,5 +251,6 @@ int main() {
     test_active_close1();
     test_active_close2();
     test_active_abort();
+    test_inplace_send();
     printf("%d errors\n", g_failures);
 }

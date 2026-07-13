@@ -38,7 +38,7 @@ namespace tcp {
 
         for (io::pkt_buf* pb : ctx.tx_pkt_bufs) {
             write_headers(pb);
-            pb->meta = {{pb->dma_buf + TCP_TOTAL_HDR_SZ, TCP_MAX_PAYLOAD_SZ}, nullptr, 0, 2};
+            pb->meta = {{pb->dma_buf + TCP_TOTAL_HDR_SZ, 0}, nullptr, 0, 2};
         }
     }
 
@@ -86,7 +86,7 @@ namespace tcp {
         const int id = pop_back(ctx.tx_free_stk);
         io::pkt_buf* pb = ctx.tx_pkt_bufs[id];
 
-        pb->meta.payload = {pb->dma_buf, 0};
+        pb->set_payload_sz(0);
 
         net::get_tcp_hdr(pb)->control = SYN_FLAG;
         net::get_ip_hdr(pb)->len = to_net<u16>(TCP_HDR_SZ + IP_HDR_SZ);
@@ -104,7 +104,7 @@ namespace tcp {
 
         const int id = pop_back(ctx.tx_free_stk);
         io::pkt_buf* pb = ctx.tx_pkt_bufs[id];
-        pb->meta.payload = {pb->dma_buf, 0};
+        pb->set_payload_sz(0);
 
         net::get_tcp_hdr(pb)->control = FIN_FLAG | ACK_FLAG;
 
@@ -176,7 +176,7 @@ namespace tcp {
 
             const int chunk = std::min(TCP_MAX_PAYLOAD_SZ, static_cast<int>(payload.size()) - n_bytes_sent);
             std::memcpy(pb->dma_buf + TCP_TOTAL_HDR_SZ, payload.data() + n_bytes_sent, chunk);
-            pb->meta.payload = {pb->dma_buf, static_cast<u32>(chunk)};
+            pb->set_payload_sz(chunk);
 
             stamp_and_send<true, true>(pb);
 

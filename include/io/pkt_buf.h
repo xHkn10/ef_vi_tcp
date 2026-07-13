@@ -22,5 +22,8 @@ namespace io {
         bool operator<(const pkt_buf& o) const {
             return seq_less(meta.seq, o.meta.seq);
         }
+        void set_payload_sz(u32 payload_sz) {
+            meta.payload = {meta.payload.data(), payload_sz};
+        }
     };
 }

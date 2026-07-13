@@ -13,6 +13,7 @@
 
 #include "config.h"
 #include "pkt_buf.h"
+#include "net/net_headers.h"
 
 namespace io {
     struct context {
@@ -74,6 +75,7 @@ namespace io {
                 else
                     pb->dma_buf_addr = ef_memreg_dma_addr(&rx_memreg, i * BUF_SZ) + offsetof(pkt_buf, dma_buf);
                 pb->id = i;
+                pb->meta.payload = {pb->dma_buf + TCP_TOTAL_HDR_SZ, 0};
                 rx_pkt_bufs[i] = pb;
             }
 
@@ -84,6 +86,7 @@ namespace io {
                 else
                     pb->dma_buf_addr = ef_memreg_dma_addr(&tx_memreg, i * BUF_SZ) + offsetof(pkt_buf, dma_buf);
                 pb->id = i;
+                pb->meta.payload = {pb->dma_buf + TCP_TOTAL_HDR_SZ, 0};
                 tx_pkt_bufs[i] = pb;
             }
 
