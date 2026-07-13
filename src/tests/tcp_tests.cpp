@@ -242,7 +242,43 @@ void test_inplace_send() {
     CHECK(is_eq == 0);
 }
 
+void test_big_span_send() {
+    io::test::test_reset();
 
+    tcp::socket sock;
+    fake_peer peer;
+    auto& cap = io::test::g_sent_captured;
+
+    std::array<std::byte, 50000> big_msg;
+    char cur = 0;
+    for (auto& b : big_msg)
+        b = static_cast<std::byte>(cur++);
+
+    establish
+
+    sock.send(big_msg);
+
+    {
+        int rcvd_sz = 0;
+        for (auto& packet : cap | std::views::drop(2))
+            rcvd_sz += payload_of(packet).size();
+
+        CHECK(rcvd_sz == big_msg.size());
+    }
+
+    {
+        int big_msg_p = 0;
+        int is_diff = 0;
+
+        for (auto& packet : cap | std::views::drop(2))
+            for (auto b : payload_of(packet))
+                is_diff += b != big_msg[big_msg_p++];
+
+        CHECK(is_diff == 0);
+    }
+
+    resource_checks
+}
 
 int main() {
     test_handshake();
@@ -252,5 +288,6 @@ int main() {
     test_active_close2();
     test_active_abort();
     test_inplace_send();
+    test_big_span_send();
     printf("%d errors\n", g_failures);
 }
