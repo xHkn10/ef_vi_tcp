@@ -327,7 +327,6 @@ void test_ooo_receive() {
         peer.seq = start + msg.size() - 1 - i;
         peer.inject(sock, ACK_FLAG, 0, b);
 
-        io::cycle_timer::elapse(DELAYED_ACK_TIMEOUT_MILLISECONDS);
         sock.poll();
 
         if (i + 1 != msg.size()) {
