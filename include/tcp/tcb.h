@@ -8,7 +8,8 @@
 #include "types.h"
 
 namespace tcp {
-    enum class TcpState : u32 {
+    enum class fsm : u32 {
+        CLOSED,
         LISTEN,
         SYN_SENT,
         SYN_RECEIVED,
@@ -18,8 +19,7 @@ namespace tcp {
         CLOSE_WAIT,
         CLOSING,
         LAST_ACK,
-        TIME_WAIT,
-        CLOSED
+        TIME_WAIT
     };
 
     struct seg_cmp {
@@ -36,7 +36,7 @@ namespace tcp {
         rx_ooo_list rx_out_of_order;
         tx_unacked_queue tx_unacked;
 
-        TcpState state;
+        fsm state;
 
         u32 SND_UNA;
         u32 SND_NXT;
@@ -46,7 +46,6 @@ namespace tcp {
         u32 RCV_WND;
 
         u32 ISS;
-        u32 ISR;
 
         bool need_ack;
         bool immediate_ack_req;
@@ -80,8 +79,11 @@ namespace tcp {
                 const net::tcp_hdr* tcp = net::get_tcp_hdr(rx_seg);
 
                 if (rx_seg->meta.seq == RCV_NXT) {
+                    rx_out_of_order.pop_front();
+
                     if (!rx_seg->meta.payload.empty()) {
                         append_ready(rx_seg);
+
                         ready_bytes += static_cast<int>(rx_seg->meta.payload.size());
                         RCV_NXT += rx_seg->meta.payload.size();
 
@@ -95,8 +97,6 @@ namespace tcp {
                         if (rx_seg->meta.payload.empty())
                             rx_free_stk.push_back(rx_seg->id);
                     }
-
-                    rx_out_of_order.pop_front();
                 } else if (seq_less(rx_seg->meta.seq, RCV_NXT)) { // TODO what if chunk of the data partially overlaps?
                     immediate_ack_req = true;
                     rx_free_stk.push_back(rx_seg->id);
@@ -109,13 +109,19 @@ namespace tcp {
             }
         }
 
+        void complete_handshake(u32 syn_ack_seq, std::vector<int>& tx_free_stk) {
+            RCV_NXT = syn_ack_seq + 1;
+            state = fsm::ESTABLISHED;
+            handle_ack(ISS + 1, tx_free_stk);
+        }
+
         void handle_ack(u32 ack_num, std::vector<int>& tx_free_stk) {
             if ((ack_num - SND_UNA) <= (SND_NXT - SND_UNA))
                 SND_UNA = ack_num;
 
             bool acked_any = false;
             while (io::pkt_buf* seg = tx_unacked.peek_front()) {
-                u32 seq_end = seg->meta.seq + seg->meta.payload.size() + !!(net::get_tcp_hdr(seg)->control & FIN_FLAG);
+                u32 seq_end = seg->meta.seq + seg->meta.payload.size() + !!(net::get_tcp_hdr(seg)->control & (SYN_FLAG | FIN_FLAG));
                 if (seq_less(SND_UNA, seq_end))
                     break;
 
@@ -133,14 +139,14 @@ namespace tcp {
                     rto_deadline_cycles = io::cycle_timer::now() + io::cycle_timer::cycles_per_ms * RTO_MILLISECONDS;
             }
 
-            // our FIN might be acknowledged
+            // our FIN might have been acknowledged
             if (SND_UNA == SND_NXT) {
-                if (state == TcpState::FIN_WAIT1)
-                    state = TcpState::FIN_WAIT2;
-                else if (state == TcpState::CLOSING)
-                    state = TcpState::TIME_WAIT;
-                else if (state == TcpState::LAST_ACK)
-                    state = TcpState::CLOSED;
+                if (state == fsm::FIN_WAIT1)
+                    state = fsm::FIN_WAIT2;
+                else if (state == fsm::CLOSING)
+                    state = fsm::TIME_WAIT;
+                else if (state == fsm::LAST_ACK)
+                    state = fsm::CLOSED;
             }
         }
 
@@ -157,15 +163,15 @@ namespace tcp {
 
         void handle_fin() {
             switch (state) {
-                case TcpState::ESTABLISHED:
-                    state = TcpState::CLOSE_WAIT;
+                case fsm::ESTABLISHED:
+                    state = fsm::CLOSE_WAIT;
                     break;
-                case TcpState::FIN_WAIT1:
+                case fsm::FIN_WAIT1:
                     // simultaneous close
-                    state = TcpState::CLOSING;
+                    state = fsm::CLOSING;
                     break;
-                case TcpState::FIN_WAIT2:
-                    state = TcpState::TIME_WAIT;
+                case fsm::FIN_WAIT2:
+                    state = fsm::TIME_WAIT;
                     break;
                 default:
                     break;

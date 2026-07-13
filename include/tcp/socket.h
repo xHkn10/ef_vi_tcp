@@ -11,16 +11,21 @@ namespace tcp {
         socket();
         ~socket();
 
-        bool bind(u32 local_ip, u16 local_port);
-        bool connect(u32 remote_ip, u16 remote_port, u8 dmac[6], u8 smac[6]);
+        void reset_tcb();
+
+        bool bind(u32 local_ip, u16 local_port, u32 remote_ip, u16 remote_port, u8 dmac[6], u8 smac[6]);
+        bool connect();
 
         bool close();
         bool abort();
 
+        void poll();
+
         io::pkt_buf* receive_single();
         io::rx_sgl receive_available();
-        int consume(const io::rx_sgl&, int bytes_to_consume);
         int receive(std::span<std::byte>);
+
+        int consume(const io::rx_sgl&, int bytes_to_consume);
 
         bool send(io::pkt_buf*);
         bool send(io::tx_sgl&&);
@@ -35,12 +40,10 @@ namespace tcp {
         static u32 generate_iss();
         void write_headers(io::pkt_buf*) const;
 
-        template <bool queue>
-        void stamp_and_send(io::pkt_buf*, int payload_sz);
+        template <bool defer_doorbell, bool stamp_ack_only>
+        void stamp_and_send(io::pkt_buf*);
 
         void send_pure_ack();
-
-        void poll_once();
 
         void retransmit_head();
 

@@ -14,23 +14,27 @@ namespace {
 
     struct fake_peer {
         u32 seq = 1000;
-        u32 recv_next = 1;
 
-        void inject(tcp::socket& sock, u8 flags, std::span<const std::byte> payload = {}) {
+        void inject(tcp::socket& sock, u8 flags, u32 recv_next = 0, std::span<const std::byte> payload = {}) {
             std::vector<std::byte> frame{TCP_TOTAL_HDR_SZ + payload.size()};
+
             auto* eth = reinterpret_cast<net::eth_hdr*>(frame.data());
             auto* ip = reinterpret_cast<net::ip_hdr*>(frame.data() + ETH_HDR_SZ);
             auto* tcp = reinterpret_cast<net::tcp_hdr*>(frame.data() + ETH_HDR_SZ + IP_HDR_SZ);
+
             eth->ethertype = to_net<u16>(0x0800);
             ip->s_addr = REMOTE_IP;
             ip->d_addr = LOCAL_IP;
             ip->len = to_net<u16>(IP_HDR_SZ + TCP_HDR_SZ + payload.size());
             tcp->seq_num = to_net(seq);
-            tcp->ack_num = to_net(recv_next);
+            tcp->ack_num = to_net(recv_next == 0 ? sock.test_tcb().SND_NXT : recv_next);
             tcp->control = flags;
             tcp->doffset_reserved = 0x50;
+
             std::memcpy(frame.data() + TCP_TOTAL_HDR_SZ, payload.data(), payload.size());
+
             seq += payload.size() + !!(flags & (SYN_FLAG | FIN_FLAG));
+
             io::test::test_inject(sock.test_ctx(), frame);
         }
 
@@ -44,27 +48,33 @@ namespace {
     }
 }
 
-void resource_checks(tcp::socket& sock) {
-    CHECK(sock.test_ctx().tx_free_stk.size() + sock.test_tcb().tx_unacked.size() == io::N_TX_BUFS);
-    CHECK(sock.test_ctx().rx_free_stk.size() + sock.test_tcb().rx_out_of_order.size() == io::N_RX_BUFS);
-}
+#define resource_checks \
+    sock.poll(); \
+    CHECK(sock.test_ctx().tx_free_stk.size() + sock.test_tcb().tx_unacked.size() == io::N_TX_BUFS); \
+    int ready_cnt = 0; \
+    for (auto* pb = sock.test_tcb().rx_ready_head; pb; pb = pb->meta.nxt) \
+        ++ready_cnt; \
+    CHECK(sock.test_ctx().rx_free_stk.size() + sock.test_tcb().rx_out_of_order.size() + io::test::g_rx_avail.size() + io::test::g_rx_pending.size() + ready_cnt == io::N_RX_BUFS);
+
+#define establish \
+    CHECK(sock.bind(LOCAL_IP, LOCAL_PORT, REMOTE_IP, REMOTE_PORT, dummy_mac, dummy_mac)); \
+    CHECK(sock.connect()); \
+    peer.inject(sock, SYN_FLAG | ACK_FLAG); \
+    sock.poll(); \
+    CHECK(sock.test_tcb().state == tcp::fsm::ESTABLISHED);
 
 void test_handshake() {
     io::test::test_reset();
 
     tcp::socket sock;
     fake_peer peer;
+    auto& cap = io::test::g_sent_captured;
 
-    auto establish = [&] {
-        if (!sock.bind(LOCAL_IP, LOCAL_PORT))
-            return false;
-        peer.inject(sock, SYN_FLAG | ACK_FLAG);
-        return sock.connect(REMOTE_IP, REMOTE_PORT, dummy_mac, dummy_mac);
-    };
+    {
+        resource_checks
+    }
 
-    CHECK(establish());
-
-    auto& cap = io::test::test_captured();
+    establish
 
     CHECK(cap.size() == 2);
     CHECK(tcp_of(cap.front())->control == SYN_FLAG);
@@ -72,7 +82,7 @@ void test_handshake() {
     CHECK(from_net(tcp_of(cap[1])->seq_num) == 1);
     CHECK(from_net(tcp_of(cap[1])->ack_num) == peer.seq);
 
-    resource_checks(sock);
+    resource_checks
 }
 
 void test_rst_during_handshake() {
@@ -81,12 +91,15 @@ void test_rst_during_handshake() {
     tcp::socket sock;
     fake_peer peer;
 
-    CHECK(sock.bind(LOCAL_IP, LOCAL_PORT));
-    peer.inject(sock, RST_FLAG);
-    CHECK(!sock.connect(REMOTE_IP, REMOTE_PORT, dummy_mac, dummy_mac));
-    CHECK(sock.test_tcb().state == tcp::TcpState::CLOSED);
+    CHECK(sock.bind(LOCAL_IP, LOCAL_PORT, REMOTE_IP, REMOTE_PORT, dummy_mac, dummy_mac));
+    CHECK(sock.connect());
 
-    resource_checks(sock);
+    peer.inject(sock, RST_FLAG);
+    sock.poll();
+
+    CHECK(sock.test_tcb().state == tcp::fsm::CLOSED);
+
+    resource_checks
 }
 
 
@@ -95,64 +108,55 @@ void test_active_close1() {
 
     tcp::socket sock;
     fake_peer peer;
-    auto cap = io::test::test_captured();
+    auto& cap = io::test::g_sent_captured;
 
+    establish
 
-    sock.bind(LOCAL_IP, LOCAL_PORT);
-    peer.inject(sock, SYN_FLAG | ACK_FLAG);
-    sock.connect(REMOTE_IP, REMOTE_PORT, dummy_mac, dummy_mac);
-
-    sock.close();
+    CHECK(sock.close());
 
     CHECK(cap.size() == 3);
     CHECK(tcp_of(cap.back())->control == (FIN_FLAG | ACK_FLAG));
-    CHECK(sock.test_tcb().state == tcp::TcpState::FIN_WAIT1);
+    CHECK(sock.test_tcb().state == tcp::fsm::FIN_WAIT1);
 
-    peer.inject(sock, FIN_FLAG | ACK_FLAG);
+    peer.inject(sock, FIN_FLAG | ACK_FLAG, 1);
+    sock.poll();
 
-    sock.receive_available();
-
-    CHECK(sock.test_tcb().state == tcp::TcpState::CLOSING);
+    CHECK(sock.test_tcb().state == tcp::fsm::CLOSING);
 
     peer.inject(sock, ACK_FLAG);
+    sock.poll();
 
-    CHECK(sock.test_tcb().state == tcp::TcpState::TIME_WAIT);
+    CHECK(sock.test_tcb().state == tcp::fsm::TIME_WAIT);
 
-    resource_checks(sock);
+    resource_checks
 }
-
 
 void test_active_close2() {
     io::test::test_reset();
 
     tcp::socket sock;
     fake_peer peer;
-    auto cap = io::test::test_captured();
+    auto& cap = io::test::g_sent_captured;
 
-    sock.bind(LOCAL_IP, LOCAL_PORT);
-    peer.inject(sock, SYN_FLAG | ACK_FLAG);
-    sock.connect(REMOTE_IP, REMOTE_PORT, dummy_mac, dummy_mac);
+    establish
 
-    sock.close();
-
+    CHECK(sock.close());
 
     CHECK(cap.size() == 3);
     CHECK(tcp_of(cap.back())->control == (FIN_FLAG | ACK_FLAG));
-    CHECK(sock.test_tcb().state == tcp::TcpState::FIN_WAIT1);
+    CHECK(sock.test_tcb().state == tcp::fsm::FIN_WAIT1);
 
     peer.inject(sock, ACK_FLAG);
+    sock.poll();
 
-    sock.receive_available();
-
-    CHECK(sock.test_tcb().state == tcp::TcpState::FIN_WAIT2);
+    CHECK(sock.test_tcb().state == tcp::fsm::FIN_WAIT2);
 
     peer.inject(sock, FIN_FLAG | ACK_FLAG);
+    sock.poll();
 
-    sock.receive_available();
+    CHECK(sock.test_tcb().state == tcp::fsm::TIME_WAIT);
 
-    CHECK(sock.test_tcb().state == tcp::TcpState::TIME_WAIT);
-
-    resource_checks(sock);
+    resource_checks
 }
 
 void test_passive_close() {
@@ -160,30 +164,30 @@ void test_passive_close() {
 
     tcp::socket sock;
     fake_peer peer;
-    auto& cap = io::test::test_captured();
+    auto& cap = io::test::g_sent_captured;
 
-    sock.bind(LOCAL_IP, LOCAL_PORT);
-    peer.inject(sock, SYN_FLAG | ACK_FLAG);
-    sock.connect(REMOTE_IP, REMOTE_PORT, dummy_mac, dummy_mac);
+    establish
 
     peer.inject(sock, FIN_FLAG | ACK_FLAG);
-    sock.receive_available();
+    sock.poll();
 
-    CHECK(sock.test_tcb().state == tcp::TcpState::CLOSE_WAIT);
+    CHECK(sock.test_tcb().state == tcp::fsm::CLOSE_WAIT);
+    CHECK(cap.size() == 3);
     CHECK(tcp_of(cap.back())->control == ACK_FLAG);
-    CHECK(cap.size() == 3); // SYN, SYN ACK, pure ACK of the FIN received
 
-    sock.close();
+    CHECK(sock.close());
 
-    CHECK(sock.test_tcb().state == tcp::TcpState::LAST_ACK);
+    CHECK(sock.test_tcb().state == tcp::fsm::LAST_ACK);
     CHECK(tcp_of(cap.back())->control == (FIN_FLAG | ACK_FLAG));
 
     peer.inject(sock, ACK_FLAG);
-    sock.receive_available();
+    sock.poll();
 
-    CHECK(sock.test_tcb().state == tcp::TcpState::CLOSED);
+    CHECK(sock.test_tcb().state == tcp::fsm::CLOSED);
 
-    resource_checks(sock);
+    CHECK(cap.size() == 4);
+
+    resource_checks
 }
 
 void test_active_abort() {
@@ -191,17 +195,17 @@ void test_active_abort() {
 
     tcp::socket sock;
     fake_peer peer;
-    auto& cap = io::test::test_captured();
+    auto& cap = io::test::g_sent_captured;
 
-    sock.bind(LOCAL_IP, LOCAL_PORT);
-    peer.inject(sock, SYN_FLAG | ACK_FLAG);
-    sock.connect(REMOTE_IP, REMOTE_PORT, dummy_mac, dummy_mac);
+    establish
 
-    sock.abort();
+    CHECK(sock.abort());
 
     CHECK(cap.size() == 3);
     CHECK(tcp_of(cap.back())->control == RST_FLAG);
-    CHECK(sock.test_tcb().state == tcp::TcpState::CLOSED);
+    CHECK(sock.test_tcb().state == tcp::fsm::CLOSED);
+
+    resource_checks
 }
 
 int main() {

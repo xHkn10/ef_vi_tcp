@@ -1,11 +1,11 @@
 #include <cstring>
 #include <iostream>
 
-#include "ouch/OuchApplication.h"
-#include "soup/SoupSession.h"
+#include "ouch/Application.h"
+#include "soup/Session.h"
 
 namespace ouch {
-    bool OuchApplication::enter_order(std::string_view token, u32 book_id, char side, u64 quantity, i32 price, u8 tif, u8 open_close, std::string_view account) {
+    bool Application::enter_order(std::string_view token, u32 book_id, char side, u64 quantity, i32 price, u8 tif, u8 open_close, std::string_view account) {
         if (!session || !session->is_logged_in()) {
             LOG_ERROR("Not logged into a session");
             return false;
@@ -40,7 +40,7 @@ namespace ouch {
         return session->send_unsequenced(std::as_bytes(std::span{&order, 1}));
     }
 
-    bool OuchApplication::cancel_order(const std::string_view token) {
+    bool Application::cancel_order(const std::string_view token) {
         if (!session || !session->is_logged_in()) {
             LOG_ERROR("Not logged into a session");
             return false;
@@ -62,7 +62,7 @@ namespace ouch {
     }
 
     // OuchApplication::on_message's span includes the OUCH msg type char
-    void OuchApplication::on_message(std::span<std::byte> ouch_msg) {
+    void Application::on_message(std::span<std::byte> ouch_msg) {
         char msg_type = static_cast<char>(ouch_msg[0]);
 
         switch (msg_type) {
@@ -103,39 +103,39 @@ namespace ouch {
         }
     }
 
-    void OuchApplication::on_order_accepted(const ouch_order_accepted& msg) {
+    void Application::on_order_accepted(const ouch_order_accepted& msg) {
 
     }
 
-    void OuchApplication::on_order_rejected(const ouch_order_rejected& msg) {
+    void Application::on_order_rejected(const ouch_order_rejected& msg) {
 
     }
 
-    void OuchApplication::on_order_executed(const ouch_order_executed& msg) {
+    void Application::on_order_executed(const ouch_order_executed& msg) {
 
     }
 
-    void OuchApplication::on_cancel_accepted(const ouch_cancel_accepted& msg) {
+    void Application::on_cancel_accepted(const ouch_cancel_accepted& msg) {
 
     }
 
-    void OuchApplication::on_disconnect() {
+    void Application::on_disconnect() {
 
     }
 
-    void OuchApplication::on_login_rejected(char reject_reason_code) {
+    void Application::on_login_rejected(char reject_reason_code) {
 
     }
 
-    void OuchApplication::on_login_accepted(const std::array<char, 10>& session, u64 seq_num) {
+    void Application::on_login_accepted(const std::array<char, 10>& session, u64 seq_num) {
 
     }
 
-    void OuchApplication::on_end_of_session() {
+    void Application::on_end_of_session() {
 
     }
 
-    void OuchApplication::attach(soup::SoupSession& s) {
+    void Application::attach(soup::Session& s) {
         session = &s;
     }
 }

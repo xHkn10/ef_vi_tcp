@@ -1,7 +1,7 @@
 #pragma once
 
 #include "tcp/socket.h"
-#include "ouch/OuchApplication.h"
+#include "ouch/Application.h"
 
 namespace soup {
     constexpr int HEARTBEAT_MS = 1000;
@@ -25,9 +25,9 @@ namespace soup {
         Active
     };
 
-    class SoupSession {
+    class Session {
     public:
-        SoupSession(tcp::socket& sock, ouch::OuchApplication& app);
+        Session(tcp::socket& sock, ouch::Application& app);
 
         bool login(std::string_view username, std::string_view password, std::string_view session, std::string_view seq);
         bool logout();
@@ -46,7 +46,7 @@ namespace soup {
         void check_timers();
 
         tcp::socket& sock;
-        ouch::OuchApplication& app;
+        ouch::Application& app;
 
         SessionState state = SessionState::Disconnected;
 

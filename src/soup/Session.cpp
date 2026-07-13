@@ -1,14 +1,14 @@
-#include "soup/SoupSession.h"
+#include "soup/Session.h"
 
 #include <cstring>
 #include <netinet/in.h>
 
 namespace soup {
-    SoupSession::SoupSession(tcp::socket &sock, ouch::OuchApplication &app) : sock{sock}, app{app} {
+    Session::Session(tcp::socket &sock, ouch::Application &app) : sock{sock}, app{app} {
         app.attach(*this);
     }
 
-    bool SoupSession::login(std::string_view username, std::string_view password, std::string_view session, std::string_view seq) {
+    bool Session::login(std::string_view username, std::string_view password, std::string_view session, std::string_view seq) {
         if (username.size() > MAX_USERNAME_SZ) {
             LOG_ERROR("Username cannot be longer than %d bytes", MAX_USERNAME_SZ);
             return false;
@@ -54,7 +54,7 @@ namespace soup {
         return false;
     }
 
-    bool SoupSession::logout() {
+    bool Session::logout() {
         std::array<std::byte, 3> logout_packet{};
         *reinterpret_cast<u16*>(logout_packet.data()) = to_net<u16>(1);
         logout_packet[2] = static_cast<std::byte>('O');
@@ -67,7 +67,7 @@ namespace soup {
         return false;
     }
 
-    void SoupSession::handle_rx() {
+    void Session::handle_rx() {
         const io::rx_sgl sgl = sock.receive_available();
 
         auto* cur_buf = sgl.head;
@@ -223,7 +223,7 @@ namespace soup {
         app.on_disconnect();
     }
 
-    bool SoupSession::send_unsequenced(std::span<const std::byte> ouch_payload) {
+    bool Session::send_unsequenced(std::span<const std::byte> ouch_payload) {
         if (ouch_payload.size() > ouch::MAX_OUCH_MSG_SZ) {
             LOG_ERROR("OUCH payload of size %lu bytes too big", ouch_payload.size());
             return false;
@@ -244,12 +244,12 @@ namespace soup {
         return false;
     }
 
-    void SoupSession::poll() {
+    void Session::poll() {
         handle_rx();
         check_timers();
     }
 
-    void SoupSession::check_timers() {
+    void Session::check_timers() {
         if (state != SessionState::Active && state != SessionState::LoggingIn)
             return;
 
@@ -266,7 +266,7 @@ namespace soup {
         }
     }
 
-    bool SoupSession::beat_heart() {
+    bool Session::beat_heart() {
         std::array<std::byte, 3> heartbeat{};
         *reinterpret_cast<u16*>(heartbeat.data()) = to_net<u16>(1);
         heartbeat[2] = static_cast<std::byte>('R');
@@ -278,7 +278,7 @@ namespace soup {
         return false;
     }
 
-    bool SoupSession::is_logged_in() const {
+    bool Session::is_logged_in() const {
         return state == SessionState::Active;
     }
 }

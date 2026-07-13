@@ -7,12 +7,12 @@
 #include "types.h"
 
 namespace soup {
-    class SoupSession;
+    class Session;
 }
 
 namespace ouch {
-    class OuchApplication {
-    friend soup::SoupSession;
+    class Application {
+    friend soup::Session;
     public:
         bool enter_order(std::string_view token, u32 book_id, char side, u64 quantity, i32 price, u8 tif, u8 open_close, std::string_view account);
         bool cancel_order(std::string_view token);
@@ -32,7 +32,7 @@ namespace ouch {
         void on_end_of_session();
 
     private:
-        void attach(soup::SoupSession& s);
-        soup::SoupSession* session = nullptr;
+        void attach(soup::Session& s);
+        soup::Session* session = nullptr;
     };
 }

@@ -40,11 +40,9 @@ namespace tcp {
             write_headers(pb);
             pb->meta = {{pb->dma_buf + TCP_TOTAL_HDR_SZ, TCP_MAX_PAYLOAD_SZ}, nullptr, 0, 2};
         }
-
-        io::cycle_timer::calibrate();
     }
 
-    bool socket::bind(u32 local_ip, u16 local_port) {
+    bool socket::bind(u32 local_ip, u16 local_port, u32 remote_ip, u16 remote_port, u8 dmac[6], u8 smac[6]) {
         if (int rc = ctx.add_ip4_tcp_filter(local_ip, local_port); rc < 0) {
             LOG_ERROR("add_ip4_tcp_filter: %s", strerror(-rc));
             return false;
@@ -58,21 +56,6 @@ namespace tcp {
             net::get_tcp_hdr(pb)->src_port = to_net(local_port);
         }
 
-        is_bound = true;
-
-        return true;
-    }
-
-    // Note: connect spins (it's blocking)
-    bool socket::connect(u32 remote_ip, u16 remote_port, u8 dmac[6], u8 smac[6]) {
-        if (ctx.tx_free_stk.empty())
-            return false;
-
-        tcb.state = TcpState::SYN_SENT;
-        tcb.ISS = generate_iss();
-        tcb.SND_UNA = tcb.ISS;
-        tcb.SND_NXT = tcb.ISS + 1;
-
         this->remote_ip = remote_ip;
         this->remote_port = remote_port;
 
@@ -84,92 +67,88 @@ namespace tcp {
             net::get_tcp_hdr(pb)->dst_port = to_net(remote_port);
         }
 
-        {
-            int id = pop_back(ctx.tx_free_stk);
-            io::pkt_buf* pb = ctx.tx_pkt_bufs[id];
-            pb->meta.tx_ref_cnt = 1;
-            net::get_tcp_hdr(pb)->control = SYN_FLAG;
-            net::get_ip_hdr(pb)->len = to_net<u16>(TCP_HDR_SZ + IP_HDR_SZ);
-            ctx.transmit(pb->dma_buf_addr, TCP_TOTAL_HDR_SZ, id);
-        }
+        is_bound = true;
 
-        // spin until poll_once transitions out of SYN_SENT (to ESTABLISHED, ideally)
-        const auto deadline = io::cycle_timer::now() + io::cycle_timer::cycles_per_ms * CONNECT_TIMEOUT_MILLISECONDS;
-        for (int spins = 0; tcb.state == TcpState::SYN_SENT; ++spins) {
-            if ((spins & 0xFF) == 0 && io::cycle_timer::now() > deadline) {
-                LOG_ERROR("Connection timeout");
-                return false;
-            }
-            poll_once();
-        }
+        return true;
+    }
 
-        if (tcb.state == TcpState::ESTABLISHED)
-            LOG_INFO("3-way handshake successful");
+    // Connect is non-blocking, as it should be, since in case we lose the connection,
+    // we should be able to reconnect in a non-blocking way
+    bool socket::connect() {
+        if (ctx.tx_free_stk.empty() || tcb.state != fsm::CLOSED || !is_bound) [[unlikely]]
+            return false;
 
-        return tcb.state == TcpState::ESTABLISHED;
+        tcb.state = fsm::SYN_SENT;
+        tcb.ISS = generate_iss();
+        tcb.SND_UNA = tcb.ISS;
+        tcb.SND_NXT = tcb.ISS;
+
+        const int id = pop_back(ctx.tx_free_stk);
+        io::pkt_buf* pb = ctx.tx_pkt_bufs[id];
+
+        pb->meta.payload = {pb->dma_buf, 0};
+
+        net::get_tcp_hdr(pb)->control = SYN_FLAG;
+        net::get_ip_hdr(pb)->len = to_net<u16>(TCP_HDR_SZ + IP_HDR_SZ);
+
+        stamp_and_send<false, false>(pb);
+
+        return true;
     }
 
     bool socket::close() {
-        if (tcb.state != TcpState::ESTABLISHED && tcb.state != TcpState::CLOSE_WAIT)
+        if (tcb.state != fsm::ESTABLISHED && tcb.state != fsm::CLOSE_WAIT)
             return false;
         if (ctx.tx_free_stk.empty() || ctx.transmit_space() == 0)
             return false;
 
-        int id = pop_back(ctx.tx_free_stk);
+        const int id = pop_back(ctx.tx_free_stk);
         io::pkt_buf* pb = ctx.tx_pkt_bufs[id];
+        pb->meta.payload = {pb->dma_buf, 0};
 
-        pb->meta.tx_ref_cnt = 1;
+        net::get_tcp_hdr(pb)->control = FIN_FLAG | ACK_FLAG;
 
-        auto* tcp = net::get_tcp_hdr(pb);
-        auto* ip = net::get_ip_hdr(pb);
+        tcb.state = (tcb.state == fsm::ESTABLISHED) ? fsm::FIN_WAIT1 : fsm::LAST_ACK;
 
-        tcp->control = FIN_FLAG | ACK_FLAG;
-        tcp->seq_num = to_net(tcb.SND_NXT++);
-        tcp->ack_num = to_net(tcb.RCV_NXT);
+        stamp_and_send<false, false>(pb);
 
-        ip->len = to_net<u16>(IP_HDR_SZ + TCP_HDR_SZ);
-
-        tcb.state = tcb.state == TcpState::ESTABLISHED ? TcpState::FIN_WAIT1 : TcpState::LAST_ACK;
-
-        ctx.transmit(pb->dma_buf_addr, TCP_TOTAL_HDR_SZ, id);
         return true;
     }
 
     bool socket::abort() {
-        if (tcb.state != TcpState::ESTABLISHED)
+        if (tcb.state == fsm::CLOSED)
             return false;
-        if (ctx.tx_free_stk.empty() || ctx.transmit_space() == 0)
-            return false; // best effort
 
-        tcb.state = TcpState::CLOSED;
+        if (!ctx.tx_free_stk.empty() && ctx.transmit_space() > 0) {
+            int id = pop_back(ctx.tx_free_stk);
+            io::pkt_buf* pb = ctx.tx_pkt_bufs[id];
 
-        int id = pop_back(ctx.tx_free_stk);
-        io::pkt_buf* pb = ctx.tx_pkt_bufs[id];
+            pb->meta.tx_ref_cnt = 1;
 
-        pb->meta.tx_ref_cnt = 1;
+            auto* tcp = net::get_tcp_hdr(pb);
 
-        auto* tcp = net::get_tcp_hdr(pb);
+            tcp->control = RST_FLAG;
+            tcp->seq_num = to_net(tcb.SND_NXT);
+            tcp->ack_num = to_net(tcb.RCV_NXT);
 
-        tcp->control = RST_FLAG;
-        tcp->seq_num = to_net(tcb.SND_NXT);
-        tcp->ack_num = to_net(tcb.RCV_NXT);
+            net::get_ip_hdr(pb)->len = to_net<u16>(IP_HDR_SZ + TCP_HDR_SZ);
 
-        net::get_ip_hdr(pb)->len = to_net<u16>(IP_HDR_SZ + TCP_HDR_SZ);
+            ctx.transmit(pb->dma_buf_addr, TCP_TOTAL_HDR_SZ, id);
+        }
 
-        ctx.transmit(pb->dma_buf_addr, TCP_TOTAL_HDR_SZ, id);
-
+        reset_tcb();
         return true;
     }
 
     bool socket::send(io::pkt_buf* pb) {
-        if (tcb.state != TcpState::ESTABLISHED || ctx.transmit_space() == 0)
+        if (tcb.state != fsm::ESTABLISHED || ctx.transmit_space() == 0)
             return false;
-        stamp_and_send<false>(pb, pb->meta.payload.size());
+        stamp_and_send<false, true>(pb);
         return true;
     }
 
     bool socket::send(io::tx_sgl&& sgl) {
-        if (tcb.state != TcpState::ESTABLISHED)
+        if (tcb.state != fsm::ESTABLISHED)
             return false;
         if (sgl.segments.empty())
             return false;
@@ -179,14 +158,14 @@ namespace tcp {
             return false;
 
         for (io::pkt_buf* seg : sgl.segments)
-            stamp_and_send<true>(seg, seg->meta.payload.size());
+            stamp_and_send<true, true>(seg);
 
         ctx.transmit_push();
         return true;
     }
 
     int socket::send(std::span<const std::byte> payload) {
-        if (tcb.state != TcpState::ESTABLISHED)
+        if (tcb.state != fsm::ESTABLISHED || payload.size() == 0) [[unlikely]]
             return 0;
 
         int n_bytes_sent = 0;
@@ -197,7 +176,9 @@ namespace tcp {
 
             const int chunk = std::min(TCP_MAX_PAYLOAD_SZ, static_cast<int>(payload.size()) - n_bytes_sent);
             std::memcpy(pb->dma_buf + TCP_TOTAL_HDR_SZ, payload.data() + n_bytes_sent, chunk);
-            stamp_and_send<true>(pb, chunk);
+            pb->meta.payload = {pb->dma_buf, static_cast<u32>(chunk)};
+
+            stamp_and_send<true, true>(pb);
 
             n_bytes_sent += chunk;
         }
@@ -208,7 +189,7 @@ namespace tcp {
     }
 
     void socket::write_headers(io::pkt_buf* pb) const {
-        net::eth_hdr eh{.ethertype = to_net<u16>(0x0800)}; // TODO fill in smac dmac
+        net::eth_hdr eh{.ethertype = to_net<u16>(0x0800)}; // smac and dmac filled in bind
 
         // NO ip options, NO ip fragmentation
         net::ip_hdr ih{
@@ -242,8 +223,6 @@ namespace tcp {
     }
 
     int socket::receive(std::span<std::byte> spn) {
-        poll_once();
-
         auto [head, tail, n_bytes] = tcb.hand_out_ready();
         io::pkt_buf* cur_rx = head;
 
@@ -273,12 +252,10 @@ namespace tcp {
     }
 
     io::pkt_buf* socket::receive_single() {
-        poll_once();
         return tcb.pop_front();
     }
 
     io::rx_sgl socket::receive_available() {
-        poll_once();
         return tcb.hand_out_ready();
     }
 
@@ -293,7 +270,6 @@ namespace tcp {
                 cur_rx = cur_rx->meta.nxt;
             } else {
                 cur_rx->meta.payload = cur_rx->meta.payload.subspan(bytes_left);
-                cur_rx->meta.seq += bytes_left; // TODO IS THIS NEEDED?
                 bytes_left = 0;
             }
         }
@@ -312,27 +288,32 @@ namespace tcp {
         return bytes_to_consume - bytes_left;
     }
 
-    template <bool queue>
-    void socket::stamp_and_send(io::pkt_buf* pb, int payload_sz) {
+    template <bool defer_doorbell, bool stamp_ack_only>
+    void socket::stamp_and_send(io::pkt_buf* pb) {
+        const int payload_sz = pb->meta.payload.size();
+
         net::get_ip_hdr(pb)->len = to_net<u16>(IP_HDR_SZ + TCP_HDR_SZ + payload_sz);
 
         net::tcp_hdr* tcp = net::get_tcp_hdr(pb);
+
+        if constexpr (stamp_ack_only) {
+            tcp->control = ACK_FLAG;
+            tcb.need_ack = tcb.immediate_ack_req = false;
+        }
+
         tcp->seq_num = to_net(tcb.SND_NXT);
         tcp->ack_num = to_net(tcb.RCV_NXT);
-        tcp->control = ACK_FLAG;
 
         pb->meta.tx_ref_cnt = 2;
         pb->meta.seq = tcb.SND_NXT;
-        pb->meta.payload = net::get_tcp_payload(pb);
 
-        tcb.SND_NXT += payload_sz;
-        tcb.need_ack = tcb.immediate_ack_req = false;
+        tcb.SND_NXT += payload_sz + !!(tcp->control & (SYN_FLAG | FIN_FLAG));
 
         tcb.tx_unacked.push_back(pb);
         if (tcb.tx_unacked.size() == 1)
             tcb.rto_deadline_cycles = io::cycle_timer::now() + io::cycle_timer::cycles_per_ms * RTO_MILLISECONDS;
 
-        if constexpr (queue)
+        if constexpr (defer_doorbell)
             ctx.transmit_init(pb->dma_buf_addr, TCP_TOTAL_HDR_SZ + payload_sz, pb->id);
         else
             ctx.transmit(pb->dma_buf_addr, TCP_TOTAL_HDR_SZ + payload_sz, pb->id);
@@ -378,9 +359,9 @@ namespace tcp {
     }
 
     void socket::send_pure_ack() {
-        // best effort
         if (ctx.tx_free_stk.empty() || ctx.transmit_space() == 0)
-            return;
+            return; // best effort
+
         const int id = pop_back(ctx.tx_free_stk);
         io::pkt_buf* pb = ctx.tx_pkt_bufs[id];
 
@@ -397,15 +378,15 @@ namespace tcp {
         ctx.transmit(pb->dma_buf_addr, TCP_TOTAL_HDR_SZ, id);
     }
 
-    void socket::poll_once() {
+    void socket::poll() {
         ef_event events[io::POLL_BATCH_SZ];
         const int n_events = ctx.eventq_poll(events, io::POLL_BATCH_SZ);
         for (auto& event : events | std::views::take(n_events)) {
             switch (EF_EVENT_TYPE(event)) {
-                case EF_EVENT_TYPE_RX_DISCARD: {
+                case EF_EVENT_TYPE_RX_DISCARD: [[unlikely]] {
                     int id = EF_EVENT_RX_RQ_ID(event);
                     ctx.rx_free_stk.push_back(id);
-                    LOG_DEBUG("poll_once: EF_EVENT_TYPE_RX_DISCARD");
+                    LOG_DEBUG("tcp::socket::poll: EF_EVENT_TYPE_RX_DISCARD");
                     break;
                 }
                 case EF_EVENT_TYPE_RX: {
@@ -414,27 +395,24 @@ namespace tcp {
                     const net::tcp_hdr* tcp = net::get_tcp_hdr(pb);
 
                     // RST
-                    if (tcp->control & RST_FLAG) {
-                        tcb.state = TcpState::CLOSED;
+                    if (tcp->control & RST_FLAG) [[unlikely]] {
                         ctx.rx_free_stk.push_back(id);
+                        reset_tcb();
                         break;
                     }
 
                     // 3 WHS
-                    if (tcb.state == TcpState::SYN_SENT) {
+                    if (tcb.state == fsm::SYN_SENT) [[unlikely]] {
                         if ((tcp->control & (SYN_FLAG | ACK_FLAG)) == (SYN_FLAG | ACK_FLAG) && from_net(tcp->ack_num) == tcb.ISS + 1) {
-                            tcb.RCV_NXT = from_net(tcp->seq_num) + 1;
-                            tcb.SND_UNA = from_net(tcp->ack_num);
-                            tcb.state = TcpState::ESTABLISHED;
+                            tcb.complete_handshake(from_net(tcp->seq_num), ctx.tx_free_stk);
                             send_pure_ack();
                         }
-                        // TODO simultaneous open
                         ctx.rx_free_stk.push_back(id);
                         break;
                     }
 
                     // ACK
-                    if (tcp->control & ACK_FLAG)
+                    if (tcp->control & ACK_FLAG) [[likely]]
                         tcb.handle_ack(from_net(tcp->ack_num), ctx.tx_free_stk);
                     else
                         LOG_DEBUG("Received segment without ACK");
@@ -450,6 +428,8 @@ namespace tcp {
                     break;
                 }
                 case EF_EVENT_TYPE_TX_ERROR:
+                    LOG_DEBUG("tcp::socket::poll: EF_EVENT_TYPE_TX_ERROR");
+                    [[fallthrough]];
                 case EF_EVENT_TYPE_TX: {
                     ef_request_id ids[EF_VI_TRANSMIT_BATCH];
                     const int n_ids = ctx.transmit_unbundle(event, ids);
@@ -495,9 +475,23 @@ namespace tcp {
     }
 
     socket::~socket() {
-        if (tcb.state != TcpState::CLOSED)
-            abort();
+        abort();
         ctx.teardown();
-        tcb.state = TcpState::CLOSED;
+    }
+
+    void socket::reset_tcb() {
+        while (auto* pb = tcb.tx_unacked.pop_front())
+            if (--pb->meta.tx_ref_cnt == 0)
+                ctx.tx_free_stk.push_back(pb->id);
+        while (auto* pb = tcb.rx_out_of_order.pop_front())
+            ctx.rx_free_stk.push_back(pb->id);
+
+        for (auto* pb = tcb.rx_ready_head; pb; ) {
+            auto* nxt = pb->meta.nxt;
+            ctx.rx_free_stk.push_back(pb->id);
+            pb = nxt;
+        }
+
+        tcb = {};
     }
 }
