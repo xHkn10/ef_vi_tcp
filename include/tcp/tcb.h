@@ -91,7 +91,7 @@ namespace tcp {
                     }
 
                     // remote side is closing
-                    if (tcp->control & FIN_FLAG) {
+                    if (tcp->control & FIN_FLAG) [[unlikely]] {
                         ++RCV_NXT;
                         handle_fin();
                         if (rx_seg->meta.payload.empty())
@@ -183,7 +183,7 @@ namespace tcp {
         void queue_ack() {
             if (!need_ack) {
                 need_ack = true;
-                ack_deadline_cycles = io::cycle_timer::now() + io::cycle_timer::cycles_per_ms * 100;
+                ack_deadline_cycles = io::cycle_timer::now() + io::cycle_timer::cycles_per_ms * DELAYED_ACK_TIMEOUT_MILLISECONDS;
             }
         }
     };

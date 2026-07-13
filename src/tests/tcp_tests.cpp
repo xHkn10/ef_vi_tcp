@@ -62,23 +62,18 @@ namespace {
     CHECK(sock.test_ctx().rx_free_stk.size() + sock.test_tcb().rx_out_of_order.size() + io::test::g_rx_avail.size() + io::test::g_rx_pending.size() + ready_cnt == io::N_RX_BUFS);
 
 #define establish \
+    io::test::test_reset(); \
+    tcp::socket sock; \
+    fake_peer peer; \
+    auto& cap = io::test::g_sent_captured; \
     CHECK(sock.bind(LOCAL_IP, LOCAL_PORT, REMOTE_IP, REMOTE_PORT, dummy_mac, dummy_mac)); \
     CHECK(sock.connect()); \
     peer.inject(sock, SYN_FLAG | ACK_FLAG); \
     sock.poll(); \
-    CHECK(sock.test_tcb().state == tcp::fsm::ESTABLISHED);
+    CHECK(sock.test_tcb().state == tcp::fsm::ESTABLISHED); \
+    CHECK(cap.size() == 2);
 
 void test_handshake() {
-    io::test::test_reset();
-
-    tcp::socket sock;
-    fake_peer peer;
-    auto& cap = io::test::g_sent_captured;
-
-    {
-        resource_checks
-    }
-
     establish
 
     CHECK(cap.size() == 2);
@@ -109,12 +104,6 @@ void test_rst_during_handshake() {
 
 
 void test_active_close1() {
-    io::test::test_reset();
-
-    tcp::socket sock;
-    fake_peer peer;
-    auto& cap = io::test::g_sent_captured;
-
     establish
 
     CHECK(sock.close());
@@ -137,12 +126,6 @@ void test_active_close1() {
 }
 
 void test_active_close2() {
-    io::test::test_reset();
-
-    tcp::socket sock;
-    fake_peer peer;
-    auto& cap = io::test::g_sent_captured;
-
     establish
 
     CHECK(sock.close());
@@ -165,12 +148,6 @@ void test_active_close2() {
 }
 
 void test_passive_close() {
-    io::test::test_reset();
-
-    tcp::socket sock;
-    fake_peer peer;
-    auto& cap = io::test::g_sent_captured;
-
     establish
 
     peer.inject(sock, FIN_FLAG | ACK_FLAG);
@@ -196,12 +173,6 @@ void test_passive_close() {
 }
 
 void test_active_abort() {
-    io::test::test_reset();
-
-    tcp::socket sock;
-    fake_peer peer;
-    auto& cap = io::test::g_sent_captured;
-
     establish
 
     CHECK(sock.abort());
@@ -214,12 +185,6 @@ void test_active_abort() {
 }
 
 void test_inplace_send() {
-    io::test::test_reset();
-
-    tcp::socket sock;
-    fake_peer peer;
-    auto& cap = io::test::g_sent_captured;
-
     establish
 
     auto* pb = sock.get_tx_buf();
@@ -243,18 +208,12 @@ void test_inplace_send() {
 }
 
 void test_big_span_send() {
-    io::test::test_reset();
-
-    tcp::socket sock;
-    fake_peer peer;
-    auto& cap = io::test::g_sent_captured;
+    establish
 
     std::array<std::byte, 50000> big_msg;
     char cur = 0;
     for (auto& b : big_msg)
         b = static_cast<std::byte>(cur++);
-
-    establish
 
     CHECK(sock.send(big_msg));
 
@@ -281,11 +240,7 @@ void test_big_span_send() {
 }
 
 void test_tx_sgl_send() {
-    io::test::test_reset();
-
-    tcp::socket sock;
-    fake_peer peer;
-    auto& cap = io::test::g_sent_captured;
+    establish
 
     const int big_msg_sz = 50000;
     std::array<std::byte, big_msg_sz> big_msg;
@@ -308,8 +263,6 @@ void test_tx_sgl_send() {
             big_msg_p += n;
         }
     }
-
-    establish
 
     CHECK(sock.send(std::move(sgl)));
 
@@ -336,12 +289,6 @@ void test_tx_sgl_send() {
 }
 
 void test_receive() {
-    io::test::test_reset();
-
-    tcp::socket sock;
-    fake_peer peer;
-    auto& cap = io::test::g_sent_captured;
-
     establish
 
     std::string msg = "sa dunya!";
@@ -349,6 +296,11 @@ void test_receive() {
 
     sock.poll();
 
+    io::cycle_timer::elapse(DELAYED_ACK_TIMEOUT_MILLISECONDS - 1);
+    sock.poll();
+    CHECK(cap.size() == 2);
+    io::cycle_timer::elapse(1);
+    sock.poll();
     CHECK(cap.size() == 3);
 
     std::string rcv_buffer(10, 0);
@@ -356,7 +308,61 @@ void test_receive() {
     CHECK(rcvd_sz == msg.size());
 
     CHECK(std::memcmp(msg.data(), rcv_buffer.data(), msg.size()) == 0);
+
+    resource_checks
 }
+
+
+void test_ooo_receive() {
+    establish
+
+    std::string msg = "hakan akbıyık bulltech";
+
+    u32 start = peer.seq;
+    for (int i = 0; i < msg.size(); ++i) {
+        std::byte b[1] = {static_cast<std::byte>(msg[msg.size() - 1 - i])};
+        peer.seq = start + msg.size() - 1 - i;
+        peer.inject(sock, ACK_FLAG, 0, b);
+    }
+
+    sock.poll();
+
+    std::string rcvd_msg(msg.size(), 0);
+
+    CHECK(sock.receive(std::span{reinterpret_cast<std::byte*>(rcvd_msg.data()), rcvd_msg.size()}) == msg.size());
+
+    CHECK(std::memcmp(msg.data(), rcvd_msg.data(), msg.size()) == 0);
+
+    resource_checks
+}
+
+
+void test_rto() {
+    establish
+
+    std::array snd{0x01, 0x31, 0x10, 0xA, 0xB};
+    u32 cur_seq = sock.test_tcb().SND_NXT;
+    CHECK(sock.send({reinterpret_cast<std::byte*>(snd.data()), snd.size()}) == snd.size());
+
+
+    int needed_sz = cap.size();
+
+    for (int i = 0; i < 10; ++i) {
+        io::cycle_timer::elapse(RTO_MILLISECONDS);
+        sock.poll();
+
+        CHECK(cap.size() == ++needed_sz);
+
+        auto payload = payload_of(cap.back());
+        CHECK(payload.size() == snd.size());
+        CHECK(std::memcmp(payload.data(), snd.data(), snd.size()) == 0);
+
+        CHECK(from_net(tcp_of(cap.back())->seq_num) == cur_seq);
+    }
+
+    resource_checks
+}
+
 
 int main() {
     test_handshake();
@@ -369,5 +375,7 @@ int main() {
     test_big_span_send();
     test_tx_sgl_send();
     test_receive();
+    test_ooo_receive();
+    test_rto();
     printf("%d errors\n", g_failures);
 }

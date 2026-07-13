@@ -31,6 +31,7 @@ constexpr int UDP_LEN_OFFSET = 28;
 
 constexpr int RTO_MILLISECONDS = 200;
 constexpr int CONNECT_TIMEOUT_MILLISECONDS = 1000;
+constexpr int DELAYED_ACK_TIMEOUT_MILLISECONDS = 100;
 
 namespace net {
     // FIELDS ARE IN NETWORK ORDER

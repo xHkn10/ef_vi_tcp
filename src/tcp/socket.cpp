@@ -165,7 +165,7 @@ namespace tcp {
     }
 
     int socket::send(std::span<const std::byte> payload) {
-        if (tcb.state != fsm::ESTABLISHED || payload.size() == 0) [[unlikely]]
+        if (tcb.state != fsm::ESTABLISHED || payload.empty()) [[unlikely]]
             return 0;
 
         int n_bytes_sent = 0;
@@ -458,9 +458,9 @@ namespace tcp {
         refill_rx_ring();
     }
 
-    // tcb.tx_unacked should be checked it's empty before calling
+    // caller should check if tcb.tx_unacked is empty before calling
     void socket::retransmit_head() {
-        // retry in next poll_once
+        // best effort, retry in next poll
         if (ctx.transmit_space() == 0)
             return;
 
