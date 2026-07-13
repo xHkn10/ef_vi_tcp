@@ -335,6 +335,29 @@ void test_tx_sgl_send() {
     resource_checks
 }
 
+void test_receive() {
+    io::test::test_reset();
+
+    tcp::socket sock;
+    fake_peer peer;
+    auto& cap = io::test::g_sent_captured;
+
+    establish
+
+    std::string msg = "sa dunya!";
+    peer.inject(sock, ACK_FLAG, 0, std::as_bytes(std::span{msg.data(), msg.size()}));
+
+    sock.poll();
+
+    CHECK(cap.size() == 3);
+
+    std::string rcv_buffer(10, 0);
+    int rcvd_sz = sock.receive({reinterpret_cast<std::byte*>(rcv_buffer.data()), rcv_buffer.size()});
+    CHECK(rcvd_sz == msg.size());
+
+    CHECK(std::memcmp(msg.data(), rcv_buffer.data(), msg.size()) == 0);
+}
+
 int main() {
     test_handshake();
     test_rst_during_handshake();
@@ -345,5 +368,6 @@ int main() {
     test_inplace_send();
     test_big_span_send();
     test_tx_sgl_send();
+    test_receive();
     printf("%d errors\n", g_failures);
 }
