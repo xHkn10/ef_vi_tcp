@@ -50,6 +50,7 @@ namespace tcp {
 
         bool need_ack;
         bool immediate_ack_req;
+
         u64 ack_deadline_cycles;
         u64 rto_deadline_cycles;
 

@@ -335,6 +335,7 @@ void test_ooo_receive() {
         sock.poll();
 
         if (i + 1 != msg.size()) {
+            CHECK(sock.receive_available().n_bytes == 0);
             CHECK(cap.size() == ++needed_sz);
             CHECK(sock.receive_available().n_bytes == 0);
             CHECK(from_net(tcp_of(cap.back())->ack_num) == rcv_nxt);
@@ -399,6 +400,22 @@ void duplicate_send() {
     resource_checks
 }
 
+void erroneous_handshake() {
+    io::test::test_reset();
+    tcp::socket sock{};
+    fake_peer peer{};
+
+    sock.bind(LOCAL_IP, LOCAL_PORT, REMOTE_IP, REMOTE_PORT, dummy_mac, dummy_mac);
+    sock.connect();
+
+    peer.inject(sock, SYN_FLAG | ACK_FLAG, 100);
+    sock.poll();
+
+    CHECK(sock.test_tcb().state == tcp::fsm::SYN_SENT);
+    
+    resource_checks
+}
+
 int main() {
     test_handshake();
     test_rst_during_handshake();
@@ -413,5 +430,6 @@ int main() {
     test_ooo_receive();
     test_rto();
     duplicate_send();
+    erroneous_handshake();
     printf("%d errors\n", g_failures);
 }
