@@ -256,7 +256,62 @@ void test_big_span_send() {
 
     establish
 
-    sock.send(big_msg);
+    CHECK(sock.send(big_msg));
+
+    {
+        int rcvd_sz = 0;
+        for (auto& packet : cap | std::views::drop(2))
+            rcvd_sz += payload_of(packet).size();
+
+        CHECK(rcvd_sz == big_msg.size());
+    }
+
+    {
+        int big_msg_p = 0;
+        int is_diff = 0;
+
+        for (auto& packet : cap | std::views::drop(2))
+            for (auto b : payload_of(packet))
+                is_diff += b != big_msg[big_msg_p++];
+
+        CHECK(is_diff == 0);
+    }
+
+    resource_checks
+}
+
+void test_tx_sgl_send() {
+    io::test::test_reset();
+
+    tcp::socket sock;
+    fake_peer peer;
+    auto& cap = io::test::g_sent_captured;
+
+    const int big_msg_sz = 50000;
+    std::array<std::byte, big_msg_sz> big_msg;
+    {
+        unsigned char cur = 0;
+        for (auto& b : big_msg)
+            b = static_cast<std::byte>(cur++);
+    }
+
+    io::tx_sgl sgl = sock.get_tx_sgl(big_msg_sz);
+
+    {
+        int big_msg_p = 0;
+        int left = big_msg_sz;
+        for (auto* pb : sgl.segments) {
+            const int n = std::min(TCP_MAX_PAYLOAD_SZ, left);
+            std::memcpy(pb->meta.payload.data(), big_msg.data() + big_msg_p, n);
+            pb->set_payload_sz(n);
+            left -= n;
+            big_msg_p += n;
+        }
+    }
+
+    establish
+
+    CHECK(sock.send(std::move(sgl)));
 
     {
         int rcvd_sz = 0;
@@ -289,5 +344,6 @@ int main() {
     test_active_abort();
     test_inplace_send();
     test_big_span_send();
+    test_tx_sgl_send();
     printf("%d errors\n", g_failures);
 }
