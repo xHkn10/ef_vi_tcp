@@ -378,7 +378,7 @@ void test_rto() {
     resource_checks
 }
 
-void duplicate_send() {
+void test_duplicate_send() {
     establish
 
     std::string msg = "hakan akbıyık bulltech stajyer";
@@ -400,7 +400,7 @@ void duplicate_send() {
     resource_checks
 }
 
-void erroneous_handshake() {
+void test_erroneous_handshake() {
     io::test::test_reset();
     tcp::socket sock{};
     fake_peer peer{};
@@ -416,6 +416,74 @@ void erroneous_handshake() {
     resource_checks
 }
 
+
+void test_wraparound() {
+    establish
+
+    u32 start = UINT32_MAX - 10;
+
+    sock.test_tcb().SND_NXT = start;
+
+    std::string msg = "hakan akbıyık sa dunya";
+    u32 msg_sz = msg.size();
+
+    CHECK(cap.size() == 2);
+
+    CHECK(sock.send(make_byte_span(msg)) == msg_sz);
+
+    CHECK(cap.size() == 3);
+
+    CHECK(from_net(tcp_of(cap.back())->seq_num) == start);
+
+    CHECK(sock.test_tcb().SND_NXT == start + msg_sz);
+
+    CHECK(sock.send(make_byte_span(msg)) == msg_sz);
+
+    CHECK(cap.size() == 4);
+
+    CHECK(from_net(tcp_of(cap.back())->seq_num) == start + msg_sz);
+
+    resource_checks
+}
+
+
+void test_partial_ack_received() {
+    establish
+
+    std::string msg = "bla bla bla bla bla blabl alb alb bla";
+
+    CHECK(sock.send(make_byte_span(msg)) == msg.size());
+
+    const int partial_cutoff = 5;
+
+    peer.inject(sock, ACK_FLAG, partial_cutoff);
+
+    sock.poll();
+
+    CHECK(cap.size() == 3);
+
+    CHECK(sock.test_tcb().SND_UNA == partial_cutoff);
+
+    io::cycle_timer::elapse(RTO_MILLISECONDS);
+
+    sock.poll();
+
+    CHECK(cap.size() == 4);
+
+    // VERY IMPORTANT NOTE:
+    // There is no need to strictly retransmit starting from SND_UNA.
+    // In case of a partial ACK where it slices a pkt_buf payload,
+    // strictly retransmitting from SND_UNA requires a std::memmove.
+    // Retransmitting from before SND_UNA is OK and RFC compliant.
+
+    const auto lhs = payload_of(cap[cap.size() - 2]);
+    const auto rhs = payload_of(cap[cap.size() - 1]);
+
+    CHECK(lhs.size() == rhs.size());
+    CHECK(std::memcmp(lhs.data(), rhs.data(), lhs.size()) == 0);
+}
+
+
 int main() {
     test_handshake();
     test_rst_during_handshake();
@@ -429,7 +497,9 @@ int main() {
     test_receive();
     test_ooo_receive();
     test_rto();
-    duplicate_send();
-    erroneous_handshake();
+    test_duplicate_send();
+    test_erroneous_handshake();
+    test_wraparound();
+    test_partial_ack_received();
     printf("%d errors\n", g_failures);
 }

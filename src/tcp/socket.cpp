@@ -461,6 +461,9 @@ namespace tcp {
     // caller should check if tcb.tx_unacked is empty before calling
     void socket::retransmit_head() {
         // best effort, retry in next poll
+        // Note: We are NOT strictly retransmitting from SND_UNA when we get a partial ACK,
+        // but potentially a little before from it, from the start of a segment
+        // notebook lm says this is OK
         if (ctx.transmit_space() == 0)
             return;
 
