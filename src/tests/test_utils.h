@@ -11,6 +11,9 @@ inline int g_failures = 0;
 #define CHECK(cond) do { if (!(cond)) { ++g_failures; \
 fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); } } while (0)
 
+inline std::string_view username = "hakan";
+inline std::string_view pass = "pass";
+
 inline std::random_device rd;
 inline std::mt19937_64 gen{rd()};
 

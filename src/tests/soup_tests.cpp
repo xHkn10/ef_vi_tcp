@@ -1,9 +1,6 @@
 #include "test_utils.h"
 #include "soup/Session.h"
 
-std::string_view username = "hakan";
-std::string_view pass = "pass";
-
 void test_soup_login() {
     establish_soup
     resource_checks

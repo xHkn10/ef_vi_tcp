@@ -29,6 +29,8 @@ void test_soup_heartbeat();
 void test_soup_end_of_session();
 void test_soup_multiple_sequenced_in_one_segment();
 
+void test_engine_lifecycle();
+
 static auto run_tcp_tests = [] {
     test_handshake();
     test_rst_during_handshake();
@@ -62,7 +64,7 @@ static auto run_soup_tests = [] {
 };
 
 static auto run_engine_tests = [] {
-
+    test_engine_lifecycle();
 };
 
 int main() {
