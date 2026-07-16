@@ -30,6 +30,8 @@ namespace soup {
         Session(tcp::socket& sock, ouch::Application& app);
 
         bool login(std::string_view username, std::string_view password, std::string_view session, std::string_view seq);
+        bool login(std::string_view username, std::string_view password);
+
         bool logout();
 
         bool send_unsequenced(std::span<const std::byte> ouch_payload);
@@ -38,7 +40,9 @@ namespace soup {
 
         void poll();
 
-        [[nodiscard]] bool is_logged_in() const;
+        [[nodiscard]] bool is_logged_in() const { return state == SessionState::Active; }
+        [[nodiscard]] bool is_disconnected() const { return state == SessionState::Disconnected; }
+        void reset() { state = SessionState::Disconnected; }
 
     private:
         bool beat_heart();
@@ -50,12 +54,14 @@ namespace soup {
 
         SessionState state = SessionState::Disconnected;
 
-        std::byte fragment_buffer[65536]{};
+        std::array<std::byte, 65536> fragment_buffer{};
 
         u64 last_rx_cycles = 0;
         u64 last_tx_cycles = 0;
 
         std::array<char, 10> session{};
         u64 seq_num = 0;
+
+        bool have_session = false;
     };
 }

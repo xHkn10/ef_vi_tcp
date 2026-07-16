@@ -12,7 +12,6 @@
 #define LOG_INFO(fmt, ...) \
     fprintf(stdout, "[INFO]  %s:%d: " fmt "\n", __FILE__, __LINE__, ##__VA_ARGS__)
 
-// Compiled out unless DEBUG is defined — keeps the fast path free of I/O.
 #ifdef DEBUG
     #define LOG_DEBUG(fmt, ...) \
         fprintf(stderr, "[DEBUG] %s:%d: " fmt "\n", __FILE__, __LINE__, ##__VA_ARGS__)
@@ -30,4 +29,6 @@ namespace io {
     constexpr int POLL_BATCH_SZ = 32;
     static_assert(POLL_BATCH_SZ >= EF_VI_EVENT_POLL_MIN_EVS, "event poll batch size too small\n");
     constexpr int REFILL_BATCH_SZ = 8;
+
+    constexpr char INTERFACE_NAME[] = "enp1s0f0";
 }

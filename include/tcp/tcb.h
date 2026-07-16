@@ -21,6 +21,7 @@ namespace tcp {
         LAST_ACK,
         TIME_WAIT
     };
+    static_assert(static_cast<u32>(fsm::CLOSED) == 0);
 
     struct seg_cmp {
         bool operator()(const io::pkt_buf* a, const io::pkt_buf* b) const {
@@ -51,8 +52,9 @@ namespace tcp {
         bool need_ack;
         bool immediate_ack_req;
 
-        u64 ack_deadline_cycles;
+        u64 d_ack_deadline_cycles;
         u64 rto_deadline_cycles;
+        u64 tw_deadline_cycles;
 
         io::rx_sgl hand_out_ready() {
             auto* tmp_head = rx_ready_head;
@@ -138,16 +140,17 @@ namespace tcp {
                 if (tx_unacked.empty())
                     rto_deadline_cycles = 0;
                 else
-                    rto_deadline_cycles = io::cycle_timer::now() + io::cycle_timer::cycles_per_ms * RTO_MILLISECONDS;
+                    rto_deadline_cycles = io::cycle_timer::now() + io::cycle_timer::cycles_per_ms * RETRANSMISSION_TIMEOUT_MILLISECONDS;
             }
 
             // our FIN might have been acknowledged
             if (SND_UNA == SND_NXT) {
                 if (state == fsm::FIN_WAIT1)
                     state = fsm::FIN_WAIT2;
-                else if (state == fsm::CLOSING)
+                else if (state == fsm::CLOSING) {
                     state = fsm::TIME_WAIT;
-                else if (state == fsm::LAST_ACK)
+                    tw_deadline_cycles = io::cycle_timer::now() + io::cycle_timer::cycles_per_ms * TIME_WAIT_MILLISECONDS;
+                } else if (state == fsm::LAST_ACK)
                     state = fsm::CLOSED;
             }
         }
@@ -174,6 +177,7 @@ namespace tcp {
                     break;
                 case fsm::FIN_WAIT2:
                     state = fsm::TIME_WAIT;
+                    tw_deadline_cycles = io::cycle_timer::now() + io::cycle_timer::cycles_per_ms * TIME_WAIT_MILLISECONDS;
                     break;
                 default:
                     break;
@@ -185,7 +189,7 @@ namespace tcp {
         void queue_ack() {
             if (!need_ack) {
                 need_ack = true;
-                ack_deadline_cycles = io::cycle_timer::now() + io::cycle_timer::cycles_per_ms * DELAYED_ACK_TIMEOUT_MILLISECONDS;
+                d_ack_deadline_cycles = io::cycle_timer::now() + io::cycle_timer::cycles_per_ms * DELAYED_ACK_TIMEOUT_MILLISECONDS;
             }
         }
     };

@@ -1,82 +1,5 @@
-#include <tcp/socket.h>
-
 #include "io/backend_test.h"
-
-int g_failures = 0;
-#define CHECK(cond) do { if (!(cond)) { ++g_failures; \
-fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); } } while (0)
-
-namespace {
-    constexpr u32 LOCAL_IP{1}, REMOTE_IP{2};
-    constexpr u16 LOCAL_PORT{1}, REMOTE_PORT{2};
-
-    u8 dummy_mac[6]{};
-
-    struct fake_peer {
-        u32 seq = 1000;
-
-        void inject(tcp::socket& sock, u8 flags, u32 recv_next = 0, std::span<const std::byte> payload = {}) {
-            std::vector<std::byte> frame{TCP_TOTAL_HDR_SZ + payload.size()};
-
-            auto* eth = reinterpret_cast<net::eth_hdr*>(frame.data());
-            auto* ip = reinterpret_cast<net::ip_hdr*>(frame.data() + ETH_HDR_SZ);
-            auto* tcp = reinterpret_cast<net::tcp_hdr*>(frame.data() + ETH_HDR_SZ + IP_HDR_SZ);
-
-            eth->ethertype = to_net<u16>(0x0800);
-            ip->s_addr = REMOTE_IP;
-            ip->d_addr = LOCAL_IP;
-            ip->len = to_net<u16>(IP_HDR_SZ + TCP_HDR_SZ + payload.size());
-            tcp->seq_num = to_net(seq);
-            tcp->ack_num = to_net(recv_next == 0 ? sock.test_tcb().SND_NXT : recv_next);
-            tcp->control = flags;
-            tcp->doffset_reserved = 0x50;
-
-            std::memcpy(frame.data() + TCP_TOTAL_HDR_SZ, payload.data(), payload.size());
-
-            seq += payload.size() + !!(flags & (SYN_FLAG | FIN_FLAG));
-
-            io::test::test_inject(sock.test_ctx(), frame);
-        }
-
-    };
-
-    net::tcp_hdr* tcp_of(std::vector<std::byte>& packet) {
-        return reinterpret_cast<net::tcp_hdr*>(packet.data() + ETH_HDR_SZ + IP_HDR_SZ);
-    }
-    net::ip_hdr* ip_of(std::vector<std::byte>& packet) {
-        return reinterpret_cast<net::ip_hdr*>(packet.data() + ETH_HDR_SZ);
-    }
-    std::span<std::byte> payload_of(std::vector<std::byte>& packet) {
-        const int tcp_hdr_len = (tcp_of(packet)->doffset_reserved >> 4) * 4;
-        const u32 payload_len = from_net(ip_of(packet)->len) - IP_HDR_SZ - tcp_hdr_len;
-        return {reinterpret_cast<std::byte*>(tcp_of(packet)) + tcp_hdr_len, payload_len};
-    }
-}
-
-#define resource_checks \
-    sock.poll(); \
-    CHECK(sock.test_ctx().tx_free_stk.size() + sock.test_tcb().tx_unacked.size() == io::N_TX_BUFS); \
-    int ready_cnt = 0; \
-    for (auto* pb = sock.test_tcb().rx_ready_head; pb; pb = pb->meta.nxt) \
-        ++ready_cnt; \
-    CHECK(sock.test_ctx().rx_free_stk.size() + sock.test_tcb().rx_out_of_order.size() + io::test::g_rx_avail.size() + io::test::g_rx_pending.size() + ready_cnt == io::N_RX_BUFS);
-
-#define establish \
-    io::test::test_reset(); \
-    tcp::socket sock; \
-    fake_peer peer; \
-    auto& cap = io::test::g_sent_captured; \
-    CHECK(sock.bind(LOCAL_IP, LOCAL_PORT, REMOTE_IP, REMOTE_PORT, dummy_mac, dummy_mac)); \
-    CHECK(sock.connect()); \
-    peer.inject(sock, SYN_FLAG | ACK_FLAG); \
-    sock.poll(); \
-    CHECK(sock.test_tcb().state == tcp::fsm::ESTABLISHED); \
-    CHECK(cap.size() == 2);
-
-
-static auto make_byte_span = [](auto& container) {
-    return std::span{reinterpret_cast<std::byte*>(container.data()), container.size()};
-};
+#include "test_utils.h"
 
 void test_handshake() {
     establish
@@ -363,7 +286,7 @@ void test_rto() {
     int needed_sz = cap.size();
 
     for (int i = 0; i < 10; ++i) {
-        io::cycle_timer::elapse(RTO_MILLISECONDS);
+        io::cycle_timer::elapse(RETRANSMISSION_TIMEOUT_MILLISECONDS);
         sock.poll();
 
         CHECK(cap.size() == ++needed_sz);
@@ -464,7 +387,7 @@ void test_partial_ack_received() {
 
     CHECK(sock.test_tcb().SND_UNA == partial_cutoff);
 
-    io::cycle_timer::elapse(RTO_MILLISECONDS);
+    io::cycle_timer::elapse(RETRANSMISSION_TIMEOUT_MILLISECONDS);
 
     sock.poll();
 
@@ -473,7 +396,7 @@ void test_partial_ack_received() {
     // VERY IMPORTANT NOTE:
     // There is no need to strictly retransmit starting from SND_UNA.
     // In case of a partial ACK where it slices a pkt_buf payload,
-    // strictly retransmitting from SND_UNA requires a std::memmove.
+    // strictly retransmitting from SND_UNA would require a std::memmove.
     // Retransmitting from before SND_UNA is OK and RFC compliant.
 
     const auto lhs = payload_of(cap[cap.size() - 2]);
@@ -481,6 +404,51 @@ void test_partial_ack_received() {
 
     CHECK(lhs.size() == rhs.size());
     CHECK(std::memcmp(lhs.data(), rhs.data(), lhs.size()) == 0);
+
+    resource_checks
+}
+
+void test_huge_send_recv_simultaneously() {
+    establish
+
+    constexpr int n_bytes = 1'000'000;
+
+    auto make_random_bytes = [] {
+        std::uniform_int_distribution dist(0, 255);
+        std::vector<char> buffer(n_bytes);
+        for (auto& b : buffer)
+            b = static_cast<char>(dist(gen));
+        return buffer;
+    };
+
+    std::vector<char> rcv_data = make_random_bytes();
+    std::vector<char> snd_data = make_random_bytes();
+    auto rcv_span = make_byte_span(rcv_data);
+    auto snd_span = make_byte_span(snd_data);
+
+    std::uniform_int_distribution dist{1, UINT16_MAX};
+
+    int sock_sent = 0;
+    int peer_sent = 0;
+    while (sock_sent < n_bytes || peer_sent < n_bytes) {
+        const int sock_chunk = std::min(n_bytes - sock_sent, dist(gen));
+        const int peer_chunk = std::min(n_bytes - peer_sent, dist(gen));
+
+        CHECK(sock.send(snd_span.subspan(sock_sent, sock_chunk)) == sock_chunk);
+        sock_sent += sock_chunk;
+
+        peer.inject_data(sock, rcv_span.subspan(peer_sent, peer_chunk));
+        drain(sock);
+
+        std::vector<char> rcv_buf_check(peer_chunk);
+
+        CHECK(sock.receive(make_byte_span(rcv_buf_check)) == peer_chunk);
+        CHECK(std::memcmp(rcv_buf_check.data(), rcv_data.data() + peer_sent, peer_chunk) == 0);
+
+        peer_sent += peer_chunk;
+    }
+
+    resource_checks
 }
 
 
@@ -501,5 +469,8 @@ int main() {
     test_erroneous_handshake();
     test_wraparound();
     test_partial_ack_received();
+
+    test_huge_send_recv_simultaneously();
+
     printf("%d errors\n", g_failures);
 }

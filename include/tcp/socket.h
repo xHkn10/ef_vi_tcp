@@ -11,7 +11,11 @@ namespace tcp {
         socket();
         ~socket();
 
-        void reset_tcb();
+        socket(const socket&) = delete;
+        socket& operator=(const socket&) = delete;
+
+        [[nodiscard]] bool is_closed() const { return tcb.state == fsm::CLOSED; }
+        [[nodiscard]] bool is_established() const { return tcb.state == fsm::ESTABLISHED; }
 
         bool bind(u32 local_ip, u16 local_port, u32 remote_ip, u16 remote_port, u8 dmac[6], u8 smac[6]);
         bool connect();
@@ -22,7 +26,7 @@ namespace tcp {
         void poll();
 
         io::pkt_buf* receive_single();
-        io::rx_sgl receive_available();
+        [[nodiscard]] io::rx_sgl receive_available();
         int receive(std::span<std::byte>);
 
         int consume(const io::rx_sgl&, int bytes_to_consume);
@@ -35,6 +39,8 @@ namespace tcp {
         io::tx_sgl get_tx_sgl(int n_bytes);
 
     private:
+        void reset_tcb();
+
         void refill_rx_ring();
 
         static u32 generate_iss();

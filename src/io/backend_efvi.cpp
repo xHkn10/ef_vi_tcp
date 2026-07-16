@@ -13,7 +13,7 @@ namespace io {
            return rc;
        }
 
-        int ifindex = if_nametoindex("enp1s0f0");
+        const auto ifindex = if_nametoindex(INTERFACE_NAME);
         if (int rc = ef_pd_alloc(&pd, dh, ifindex, EF_PD_DEFAULT); rc < 0) {
             LOG_ERROR("ef_pd_alloc: %s", std::strerror(-rc));
             return rc;
@@ -78,8 +78,7 @@ namespace io {
         ef_filter_spec spec;
         ef_filter_spec_init(&spec, EF_FILTER_FLAG_NONE);
         // ef_filter_spec_set_ip4_local expects network order
-        if (int rc = ef_filter_spec_set_ip4_local(&spec, IPPROTO_TCP,
-                to_net(local_ip), to_net(local_port)); rc < 0)
+        if (int rc = ef_filter_spec_set_ip4_local(&spec, IPPROTO_TCP, to_net(local_ip), to_net(local_port)); rc < 0)
             return rc;
         return ef_vi_filter_add(&vi, dh, &spec, nullptr);
     }

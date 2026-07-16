@@ -2,17 +2,14 @@
 
 #include "types.h"
 
-constexpr int PKT_BUF_SZ = 64;
+constexpr int PKT_BUF_MD_SZ = 64;
 
 constexpr int ETH_HDR_SZ = 14;
 constexpr int IP_HDR_SZ = 20;
-constexpr int UDP_HDR_SZ = 8;
 constexpr int TCP_HDR_SZ = 20;
-constexpr int UDP_TOTAL_HDR_SZ = ETH_HDR_SZ + IP_HDR_SZ + UDP_HDR_SZ;
 constexpr int TCP_TOTAL_HDR_SZ = ETH_HDR_SZ + IP_HDR_SZ + TCP_HDR_SZ;
 
-constexpr int UDP_TOTAL_METADATA_SZ = UDP_TOTAL_HDR_SZ + PKT_BUF_SZ;
-constexpr int TCP_TOTAL_METADATA_SZ = TCP_TOTAL_HDR_SZ + PKT_BUF_SZ;
+constexpr int TCP_TOTAL_METADATA_SZ = TCP_TOTAL_HDR_SZ + PKT_BUF_MD_SZ;
 constexpr int TCP_MAX_PAYLOAD_SZ = io::BUF_SZ - TCP_TOTAL_METADATA_SZ - 64;
 
 constexpr u32 SYN_FLAG = 0b00000010;
@@ -25,16 +22,18 @@ constexpr int IP_D_ADDR_OFFSET = 20;
 constexpr int TCP_SEQ_NUM_OFFSET = 32;
 constexpr int TCP_ACK_NUM_OFFSET = 36;
 
-constexpr int UDP_S_PORT_OFFSET = 24;
-constexpr int UDP_D_PORT_OFFSET = 26;
-constexpr int UDP_LEN_OFFSET = 28;
-
-constexpr int RTO_MILLISECONDS = 200;
+constexpr int RETRANSMISSION_TIMEOUT_MILLISECONDS = 200;
 constexpr int CONNECT_TIMEOUT_MILLISECONDS = 1000;
 constexpr int DELAYED_ACK_TIMEOUT_MILLISECONDS = 100;
+constexpr int TIME_WAIT_MILLISECONDS = 60'000; // Linux is also 60 seconds
+
 
 namespace net {
     // FIELDS ARE IN NETWORK ORDER
+
+    // Because the headers start from the beginning of a cache line, (dma_buf is aligned)
+    // and the size of headers (with no options) is 14 + 20 + 20 = 54,
+    // unpadded headers will never trigger an unaligned access penalty causing from line splits.
 
     // 14 bytes
     struct eth_hdr {
@@ -57,14 +56,6 @@ namespace net {
         u32 d_addr;
         // options will follow d_addr from here, if there are any
         // ASSUMING NO IP OPTIONS
-    } __attribute__((packed));
-
-    // 8 bytes
-    struct udp_hdr {
-        u16 src_port;
-        u16 dst_port;
-        u16 len;
-        u16 checksum;
     } __attribute__((packed));
 
     // 20 bytes (no options)
@@ -92,13 +83,16 @@ namespace net {
     }
 
     inline std::span<std::byte> get_tcp_payload(io::pkt_buf* pb) {
-        auto* ip = get_ip_hdr(pb);
+        const auto* ip = get_ip_hdr(pb);
         auto* tcp = get_tcp_hdr(pb);
 
-        int tcp_header_len = (tcp->doffset_reserved >> 4) * 4;
-        u32 payload_sz = from_net(ip->len) - IP_HDR_SZ - tcp_header_len;
+        const int tcp_header_len = (tcp->doffset_reserved >> 4) * 4;
+        const int payload_sz = from_net(ip->len) - IP_HDR_SZ - tcp_header_len;
 
-        return {reinterpret_cast<std::byte*>(tcp) + tcp_header_len, payload_sz};
+        if (payload_sz < 0 || payload_sz > TCP_MAX_PAYLOAD_SZ) [[unlikely]]
+            return {};
+
+        return {reinterpret_cast<std::byte*>(tcp) + tcp_header_len, static_cast<u64>(payload_sz)};
     }
 
     inline std::span<std::byte> get_tcp_options(io::pkt_buf* pb) {

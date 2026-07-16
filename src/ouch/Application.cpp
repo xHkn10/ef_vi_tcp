@@ -63,9 +63,7 @@ namespace ouch {
 
     // OuchApplication::on_message's span includes the OUCH msg type char
     void Application::on_message(std::span<std::byte> ouch_msg) {
-        char msg_type = static_cast<char>(ouch_msg[0]);
-
-        switch (msg_type) {
+        switch (const char msg_type = static_cast<char>(ouch_msg[0])) {
             case ORDER_ACCEPTED: {
                 if (ouch_msg.size() != sizeof(ouch_order_accepted)) {
                     LOG_ERROR("Expected %lu bytes, got %lu bytes", sizeof(ouch_order_accepted), ouch_msg.size());
@@ -104,35 +102,35 @@ namespace ouch {
     }
 
     void Application::on_order_accepted(const ouch_order_accepted& msg) {
-
+        LOG_INFO("Order accepted");
     }
 
     void Application::on_order_rejected(const ouch_order_rejected& msg) {
-
+        LOG_INFO("Order rejected");
     }
 
     void Application::on_order_executed(const ouch_order_executed& msg) {
-
+        LOG_INFO("Order executed");
     }
 
     void Application::on_cancel_accepted(const ouch_cancel_accepted& msg) {
-
+        LOG_INFO("Cancel accepted");
     }
 
     void Application::on_disconnect() {
-
+        LOG_INFO("Session disconnected");
     }
 
     void Application::on_login_rejected(char reject_reason_code) {
-
+        LOG_INFO("Login rejected with reject code %c", reject_reason_code);
     }
 
-    void Application::on_login_accepted(const std::array<char, 10>& session, u64 seq_num) {
-
+    void Application::on_login_accepted(u64 seq_num) {
+        LOG_INFO("Login accepted, sequence number is %lu", seq_num);
     }
 
     void Application::on_end_of_session() {
-
+        LOG_INFO("End of session");
     }
 
     void Application::attach(soup::Session& s) {

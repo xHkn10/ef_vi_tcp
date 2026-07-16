@@ -1,5 +1,6 @@
 #include "soup/Session.h"
 
+#include <charconv>
 #include <cstring>
 #include <netinet/in.h>
 
@@ -9,19 +10,19 @@ namespace soup {
     }
 
     bool Session::login(std::string_view username, std::string_view password, std::string_view session, std::string_view seq) {
-        if (username.size() > MAX_USERNAME_SZ) {
+        if (username.size() > MAX_USERNAME_SZ) [[unlikely]] {
             LOG_ERROR("Username cannot be longer than %d bytes", MAX_USERNAME_SZ);
             return false;
         }
-        if (password.size() > MAX_PASSWORD_SZ) {
+        if (password.size() > MAX_PASSWORD_SZ) [[unlikely]] {
             LOG_ERROR("Password cannot be longer than %d bytes", MAX_PASSWORD_SZ);
             return false;
         }
-        if (session.size() > MAX_SESSION_SZ) {
+        if (session.size() > MAX_SESSION_SZ) [[unlikely]] {
             LOG_ERROR("Session cannot be longer than %d bytes", MAX_SESSION_SZ);
             return false;
         }
-        if (seq.size() > MAX_SEQUENCE_SZ) {
+        if (seq.size() > MAX_SEQUENCE_SZ) [[unlikely]] {
             LOG_ERROR("Sequence cannot be longer than %d bytes", MAX_SEQUENCE_SZ);
             return false;
         }
@@ -54,6 +55,19 @@ namespace soup {
         return false;
     }
 
+    bool Session::login(std::string_view username, std::string_view password) {
+        if (!have_session)
+            return login(username, password, "", "1");
+
+        std::array<char, MAX_SEQUENCE_SZ> seq_buf{};
+        auto [end, _] = std::to_chars(seq_buf.data(), seq_buf.data() + seq_buf.size(), seq_num);
+
+        const auto session_sv = std::string_view{session};
+        const auto seq_sv = std::string_view{seq_buf.data(), end};
+
+        return login(username, password, session_sv, seq_sv);
+    }
+
     bool Session::logout() {
         std::array<std::byte, 3> logout_packet{};
         *reinterpret_cast<u16*>(logout_packet.data()) = to_net<u16>(1);
@@ -71,15 +85,14 @@ namespace soup {
         const io::rx_sgl sgl = sock.receive_available();
 
         auto* cur_buf = sgl.head;
-
         if (!cur_buf)
             return;
 
         last_rx_cycles = io::cycle_timer::now();
 
         auto* cur_ptr = cur_buf->meta.payload.data();
-        u32 offset = 0;
-        u32 consumed_bytes = 0;
+        i64 offset = 0;
+        i64 consumed_bytes = 0;
 
         auto advance = [&](const u32 steps) {
             offset += steps;
@@ -148,13 +161,15 @@ namespace soup {
                     }
 
                     state = SessionState::Active;
-                    fragmented_memcpy(reinterpret_cast<std::byte*>(session.data()), 10);
+                    have_session = true;
+
+                    fragmented_memcpy(reinterpret_cast<std::byte*>(session.data()), MAX_SESSION_SZ);
 
                     char seq_num_bytes[21]{};
-                    fragmented_memcpy(reinterpret_cast<std::byte*>(seq_num_bytes), 20);
+                    fragmented_memcpy(reinterpret_cast<std::byte*>(seq_num_bytes), MAX_SEQUENCE_SZ);
                     // strtoll skips whitespace
                     seq_num = strtoll(seq_num_bytes, nullptr, 10);
-                    app.on_login_accepted(session, seq_num);
+                    app.on_login_accepted(seq_num);
                     break;
                 }
                 case LOGIN_REJECTED: {
@@ -164,6 +179,7 @@ namespace soup {
                     }
 
                     state = SessionState::Disconnected;
+                    have_session = false;
                     const char rej_reason = static_cast<char>(*(cur_ptr + offset));
                     advance(1);
                     LOG_INFO("Reject reason: %c", rej_reason);
@@ -184,6 +200,8 @@ namespace soup {
                         goto fatal;
                     }
                     state = SessionState::Disconnected;
+                    have_session = false;
+
                     app.on_end_of_session();
                     break;
                 }
@@ -198,8 +216,8 @@ namespace soup {
                         app.on_message({cur_ptr + offset, ouch_len});
                         advance(ouch_len);
                     } else {
-                        fragmented_memcpy(fragment_buffer, ouch_len);
-                        app.on_message({fragment_buffer, ouch_len});
+                        fragmented_memcpy(fragment_buffer.data(), ouch_len);
+                        app.on_message({fragment_buffer.data(), ouch_len});
                     }
 
                     ++seq_num;
@@ -224,7 +242,7 @@ namespace soup {
     }
 
     bool Session::send_unsequenced(std::span<const std::byte> ouch_payload) {
-        if (ouch_payload.size() > ouch::MAX_OUCH_MSG_SZ) {
+        if (ouch_payload.size() > ouch::MAX_OUCH_MSG_SZ) [[unlikely]] {
             LOG_ERROR("OUCH payload of size %lu bytes too big", ouch_payload.size());
             return false;
         }
@@ -276,9 +294,5 @@ namespace soup {
             return true;
         }
         return false;
-    }
-
-    bool Session::is_logged_in() const {
-        return state == SessionState::Active;
     }
 }

@@ -311,7 +311,7 @@ namespace tcp {
 
         tcb.tx_unacked.push_back(pb);
         if (tcb.tx_unacked.size() == 1)
-            tcb.rto_deadline_cycles = io::cycle_timer::now() + io::cycle_timer::cycles_per_ms * RTO_MILLISECONDS;
+            tcb.rto_deadline_cycles = io::cycle_timer::now() + io::cycle_timer::cycles_per_ms * RETRANSMISSION_TIMEOUT_MILLISECONDS;
 
         if constexpr (defer_doorbell)
             ctx.transmit_init(pb->dma_buf_addr, TCP_TOTAL_HDR_SZ + payload_sz, pb->id);
@@ -390,6 +390,11 @@ namespace tcp {
                     break;
                 }
                 case EF_EVENT_TYPE_RX: {
+                    if (tcb.state == fsm::CLOSED) [[unlikely]] {
+                        abort();
+                        break;
+                    }
+
                     int id = EF_EVENT_RX_RQ_ID(event);
                     io::pkt_buf* pb = ctx.rx_pkt_bufs[id];
                     const net::tcp_hdr* tcp = net::get_tcp_hdr(pb);
@@ -418,10 +423,10 @@ namespace tcp {
                         LOG_DEBUG("Received segment without ACK");
 
                     auto payload = net::get_tcp_payload(pb);
-                    if (payload.empty() && !(tcp->control & FIN_FLAG))
+                    if (payload.empty() && !(tcp->control & FIN_FLAG)) [[unlikely]]
                         ctx.rx_free_stk.push_back(id);
                     else {
-                        pb->meta = {payload, nullptr, from_net(tcp->seq_num)};
+                        pb->meta = {payload, nullptr, from_net(tcp->seq_num), 0};
                         if (!tcb.rx_out_of_order.insert(pb))
                             ctx.rx_free_stk.push_back(id);
                     }
@@ -449,11 +454,14 @@ namespace tcp {
 
         tcb.process(ctx.rx_free_stk);
 
-        if (tcb.immediate_ack_req || (tcb.need_ack && io::cycle_timer::now() >= tcb.ack_deadline_cycles))
+        if (tcb.immediate_ack_req || (tcb.need_ack && io::cycle_timer::now() >= tcb.d_ack_deadline_cycles))
             send_pure_ack();
 
         if (!tcb.tx_unacked.empty() && io::cycle_timer::now() >= tcb.rto_deadline_cycles)
             retransmit_head();
+
+        if (tcb.state == fsm::TIME_WAIT && io::cycle_timer::now() >= tcb.tw_deadline_cycles) [[unlikely]]
+            reset_tcb();
 
         refill_rx_ring();
     }
@@ -474,7 +482,7 @@ namespace tcp {
 
         ctx.transmit(pb->dma_buf_addr, TCP_TOTAL_HDR_SZ + pb->meta.payload.size(), pb->id);
 
-        tcb.rto_deadline_cycles = io::cycle_timer::now() + io::cycle_timer::cycles_per_ms * RTO_MILLISECONDS;
+        tcb.rto_deadline_cycles = io::cycle_timer::now() + io::cycle_timer::cycles_per_ms * RETRANSMISSION_TIMEOUT_MILLISECONDS;
     }
 
     socket::~socket() {
@@ -495,6 +503,6 @@ namespace tcp {
             pb = nxt;
         }
 
-        tcb = {};
+        tcb = {}; // sets state to closed
     }
 }

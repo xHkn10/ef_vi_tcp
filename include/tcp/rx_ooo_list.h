@@ -2,6 +2,8 @@
 
 #include "io/context.h"
 
+// TODO consider skipping rx_ooo_list ENTIRELY, by appending directly to ready_queue if received in order
+
 namespace tcp {
     class rx_ooo_list {
     public:
@@ -22,18 +24,37 @@ namespace tcp {
         }
 
         bool insert(io::pkt_buf* new_pb) {
-            if (!head || *new_pb < *head) {
+            if (!head) {
+                head = tail = new_pb;
+                return true;
+            }
+
+            if (*tail < *new_pb) [[likely]] {
+                new_pb->meta.nxt = nullptr;
+                tail->meta.nxt = new_pb;
+                tail = new_pb;
+                return true;
+            }
+
+            if (*new_pb < *head) {
                 new_pb->meta.nxt = head;
                 head = new_pb;
                 return true;
             }
-            io::pkt_buf* cur = head;
-            while (cur->meta.nxt && *cur->meta.nxt < *new_pb)
+
+            if (head->meta.seq == new_pb->meta.seq)
+                return false;
+
+            auto* cur = head;
+            while (cur->meta.nxt && *cur < *new_pb)
                 cur = cur->meta.nxt;
+
             if (cur->meta.nxt && cur->meta.nxt->meta.seq == new_pb->meta.seq)
                 return false;
+
             new_pb->meta.nxt = cur->meta.nxt;
             cur->meta.nxt = new_pb;
+
             return true;
         }
 
@@ -46,5 +67,6 @@ namespace tcp {
 
     private:
         io::pkt_buf* head = nullptr;
+        io::pkt_buf* tail = nullptr;
     };
 }

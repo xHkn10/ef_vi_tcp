@@ -10,6 +10,7 @@ using u32 = std::uint32_t;
 using u64 = std::uint64_t;
 
 using i32 = std::int32_t;
+using i64 = std::int64_t;
 
 inline bool seq_less(u32 s1, u32 s2) {
     return (s1 != s2) && ((s2 - s1) < (1u << 31));

@@ -12,6 +12,10 @@ namespace {
 
 namespace io::test {
     void test_inject(context& ctx, std::span<const std::byte> frame) {
+        if (frame.size() > BUF_SZ - PKT_BUF_MD_SZ) {
+            LOG_ERROR("test_inject: %zu-byte frame exceeds BUF_SZ, dropping", frame.size());
+            return;
+        }
         int id = pop_front(g_rx_avail);
         auto* pb = ctx.rx_pkt_bufs[id];
         std::memcpy(pb->dma_buf, frame.data(), frame.size());
