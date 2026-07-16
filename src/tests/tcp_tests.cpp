@@ -2,13 +2,13 @@
 #include "test_utils.h"
 
 void test_handshake() {
-    establish
+    establish_tcp
 
     CHECK(cap.size() == 2);
     CHECK(tcp_of(cap.front())->control == SYN_FLAG);
     CHECK(tcp_of(cap[1])->control == ACK_FLAG);
     CHECK(from_net(tcp_of(cap[1])->seq_num) == 1);
-    CHECK(from_net(tcp_of(cap[1])->ack_num) == peer.seq);
+    CHECK(from_net(tcp_of(cap[1])->ack_num) == tcp_peer.seq);
 
     resource_checks
 }
@@ -17,12 +17,12 @@ void test_rst_during_handshake() {
     io::test::test_reset();
 
     tcp::socket sock;
-    fake_peer peer;
+    fake_tcp_peer tcp_peer;
 
     CHECK(sock.bind(LOCAL_IP, LOCAL_PORT, REMOTE_IP, REMOTE_PORT, dummy_mac, dummy_mac));
     CHECK(sock.connect());
 
-    peer.inject(sock, RST_FLAG);
+    tcp_peer.inject(sock, RST_FLAG);
     sock.poll();
 
     CHECK(sock.test_tcb().state == tcp::fsm::CLOSED);
@@ -32,7 +32,7 @@ void test_rst_during_handshake() {
 
 
 void test_active_close1() {
-    establish
+    establish_tcp
 
     CHECK(sock.close());
 
@@ -40,12 +40,12 @@ void test_active_close1() {
     CHECK(tcp_of(cap.back())->control == (FIN_FLAG | ACK_FLAG));
     CHECK(sock.test_tcb().state == tcp::fsm::FIN_WAIT1);
 
-    peer.inject(sock, FIN_FLAG | ACK_FLAG, 1);
+    tcp_peer.inject(sock, FIN_FLAG | ACK_FLAG, 1);
     sock.poll();
 
     CHECK(sock.test_tcb().state == tcp::fsm::CLOSING);
 
-    peer.inject(sock, ACK_FLAG);
+    tcp_peer.inject(sock, ACK_FLAG);
     sock.poll();
 
     CHECK(sock.test_tcb().state == tcp::fsm::TIME_WAIT);
@@ -54,7 +54,7 @@ void test_active_close1() {
 }
 
 void test_active_close2() {
-    establish
+    establish_tcp
 
     CHECK(sock.close());
 
@@ -62,12 +62,12 @@ void test_active_close2() {
     CHECK(tcp_of(cap.back())->control == (FIN_FLAG | ACK_FLAG));
     CHECK(sock.test_tcb().state == tcp::fsm::FIN_WAIT1);
 
-    peer.inject(sock, ACK_FLAG);
+    tcp_peer.inject(sock, ACK_FLAG);
     sock.poll();
 
     CHECK(sock.test_tcb().state == tcp::fsm::FIN_WAIT2);
 
-    peer.inject(sock, FIN_FLAG | ACK_FLAG);
+    tcp_peer.inject(sock, FIN_FLAG | ACK_FLAG);
     sock.poll();
 
     CHECK(sock.test_tcb().state == tcp::fsm::TIME_WAIT);
@@ -76,9 +76,9 @@ void test_active_close2() {
 }
 
 void test_passive_close() {
-    establish
+    establish_tcp
 
-    peer.inject(sock, FIN_FLAG | ACK_FLAG);
+    tcp_peer.inject(sock, FIN_FLAG | ACK_FLAG);
     sock.poll();
 
     CHECK(sock.test_tcb().state == tcp::fsm::CLOSE_WAIT);
@@ -90,7 +90,7 @@ void test_passive_close() {
     CHECK(sock.test_tcb().state == tcp::fsm::LAST_ACK);
     CHECK(tcp_of(cap.back())->control == (FIN_FLAG | ACK_FLAG));
 
-    peer.inject(sock, ACK_FLAG);
+    tcp_peer.inject(sock, ACK_FLAG);
     sock.poll();
 
     CHECK(sock.test_tcb().state == tcp::fsm::CLOSED);
@@ -101,7 +101,7 @@ void test_passive_close() {
 }
 
 void test_active_abort() {
-    establish
+    establish_tcp
 
     CHECK(sock.abort());
 
@@ -113,7 +113,7 @@ void test_active_abort() {
 }
 
 void test_inplace_send() {
-    establish
+    establish_tcp
 
     auto* pb = sock.get_tx_buf();
     std::string_view msg = "sa dunya";
@@ -136,7 +136,7 @@ void test_inplace_send() {
 }
 
 void test_big_span_send() {
-    establish
+    establish_tcp
 
     std::array<std::byte, 50000> big_msg;
     char cur = 0;
@@ -168,7 +168,7 @@ void test_big_span_send() {
 }
 
 void test_tx_sgl_send() {
-    establish
+    establish_tcp
 
     const int big_msg_sz = 50000;
     std::array<std::byte, big_msg_sz> big_msg;
@@ -217,10 +217,10 @@ void test_tx_sgl_send() {
 }
 
 void test_receive() {
-    establish
+    establish_tcp
 
     std::string msg = "sa dunya!";
-    peer.inject(sock, ACK_FLAG, 0, make_byte_span(msg));
+    tcp_peer.inject(sock, ACK_FLAG, 0, make_byte_span(msg));
 
     sock.poll();
 
@@ -242,18 +242,18 @@ void test_receive() {
 
 
 void test_ooo_receive() {
-    establish
+    establish_tcp
 
     std::string msg = "hakan akbıyık bulltech";
 
-    u32 start = peer.seq;
+    u32 start = tcp_peer.seq;
     u32 rcv_nxt = sock.test_tcb().RCV_NXT;
     int needed_sz = cap.size();
     for (int i = 0; i < msg.size(); ++i) {
         std::byte b[1] = {static_cast<std::byte>(msg[msg.size() - 1 - i])};
 
-        peer.seq = start + msg.size() - 1 - i;
-        peer.inject(sock, ACK_FLAG, 0, b);
+        tcp_peer.seq = start + msg.size() - 1 - i;
+        tcp_peer.inject(sock, ACK_FLAG, 0, b);
 
         sock.poll();
 
@@ -277,7 +277,7 @@ void test_ooo_receive() {
 }
 
 void test_rto() {
-    establish
+    establish_tcp
 
     std::array snd{0x01, 0x31, 0x10, 0xA, 0xB};
     u32 cur_seq = sock.test_tcb().SND_NXT;
@@ -302,10 +302,10 @@ void test_rto() {
 }
 
 void test_duplicate_send() {
-    establish
+    establish_tcp
 
     std::string msg = "hakan akbıyık bulltech stajyer";
-    peer.inject(sock, ACK_FLAG, 0, make_byte_span(msg));
+    tcp_peer.inject(sock, ACK_FLAG, 0, make_byte_span(msg));
     sock.poll();
     CHECK(cap.size() == 2);
     io::cycle_timer::elapse(DELAYED_ACK_TIMEOUT_MILLISECONDS);
@@ -313,8 +313,8 @@ void test_duplicate_send() {
     CHECK(cap.size() == 3);
 
     for (int i = 0; i < 100; ++i) {
-        peer.seq = 0;
-        peer.inject(sock, ACK_FLAG, 0, make_byte_span(msg));
+        tcp_peer.seq = 0;
+        tcp_peer.inject(sock, ACK_FLAG, 0, make_byte_span(msg));
         sock.poll();
         CHECK(cap.size() == 4 + i);
         CHECK(from_net(tcp_of(cap.back())->ack_num) == sock.test_tcb().ISR + 1 + msg.size());
@@ -326,12 +326,12 @@ void test_duplicate_send() {
 void test_erroneous_handshake() {
     io::test::test_reset();
     tcp::socket sock{};
-    fake_peer peer{};
+    fake_tcp_peer tcp_peer{};
 
     sock.bind(LOCAL_IP, LOCAL_PORT, REMOTE_IP, REMOTE_PORT, dummy_mac, dummy_mac);
     sock.connect();
 
-    peer.inject(sock, SYN_FLAG | ACK_FLAG, 100);
+    tcp_peer.inject(sock, SYN_FLAG | ACK_FLAG, 100);
     sock.poll();
 
     CHECK(sock.test_tcb().state == tcp::fsm::SYN_SENT);
@@ -341,7 +341,7 @@ void test_erroneous_handshake() {
 
 
 void test_wraparound() {
-    establish
+    establish_tcp
 
     u32 start = UINT32_MAX - 10;
 
@@ -371,7 +371,7 @@ void test_wraparound() {
 
 
 void test_partial_ack_received() {
-    establish
+    establish_tcp
 
     std::string msg = "bla bla bla bla bla blabl alb alb bla";
 
@@ -379,7 +379,7 @@ void test_partial_ack_received() {
 
     const int partial_cutoff = 5;
 
-    peer.inject(sock, ACK_FLAG, partial_cutoff);
+    tcp_peer.inject(sock, ACK_FLAG, partial_cutoff);
 
     sock.poll();
 
@@ -409,7 +409,7 @@ void test_partial_ack_received() {
 }
 
 void test_huge_send_recv_simultaneously() {
-    establish
+    establish_tcp
 
     constexpr int n_bytes = 1'000'000;
 
@@ -437,7 +437,7 @@ void test_huge_send_recv_simultaneously() {
         CHECK(sock.send(snd_span.subspan(sock_sent, sock_chunk)) == sock_chunk);
         sock_sent += sock_chunk;
 
-        peer.inject_data(sock, rcv_span.subspan(peer_sent, peer_chunk));
+        tcp_peer.inject_data(sock, rcv_span.subspan(peer_sent, peer_chunk));
         drain(sock);
 
         std::vector<char> rcv_buf_check(peer_chunk);
@@ -449,28 +449,4 @@ void test_huge_send_recv_simultaneously() {
     }
 
     resource_checks
-}
-
-
-int main() {
-    test_handshake();
-    test_rst_during_handshake();
-    test_passive_close();
-    test_active_close1();
-    test_active_close2();
-    test_active_abort();
-    test_inplace_send();
-    test_big_span_send();
-    test_tx_sgl_send();
-    test_receive();
-    test_ooo_receive();
-    test_rto();
-    test_duplicate_send();
-    test_erroneous_handshake();
-    test_wraparound();
-    test_partial_ack_received();
-
-    test_huge_send_recv_simultaneously();
-
-    printf("%d errors\n", g_failures);
 }

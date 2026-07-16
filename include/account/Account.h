@@ -18,7 +18,8 @@ enum class Phase {
     Idle,
     Connecting,
     LoggingIn,
-    Active
+    Active,
+    Stopped
 };
 
 struct Account {

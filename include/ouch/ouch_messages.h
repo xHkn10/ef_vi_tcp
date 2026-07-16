@@ -5,15 +5,15 @@
 #include "types.h"
 
 namespace ouch {
-    constexpr char ENTER_ORDER = 'O';
-    constexpr char CANCEL_ORDER = 'X';
+    constexpr char ENTER_ORDER_VAL = 'O';
+    constexpr char CANCEL_ORDER_VAL = 'X';
 
-    constexpr char ORDER_ACCEPTED = 'A';
-    constexpr char ORDER_REJECTED = 'J';
-    constexpr char ORDER_EXECUTED = 'E';
-    constexpr char CANCEL_ACCEPTED = 'C';
+    constexpr char ORDER_ACCEPTED_VAL = 'A';
+    constexpr char ORDER_REJECTED_VAL = 'J';
+    constexpr char ORDER_EXECUTED_VAL = 'E';
+    constexpr char CANCEL_ACCEPTED_VAL = 'C';
 
-    struct ouch_enter_order {
+    struct enter_order_msg {
         char msg_type; // 'O'
         char order_token[14];
         u32 order_book_id;
@@ -24,15 +24,15 @@ namespace ouch {
         u8 open_close;              // 0 default, 1 open, 2 close/net
         char client_account[16];
     } __attribute__((packed));
-    static_assert(sizeof(ouch_enter_order) == 50);
+    static_assert(sizeof(enter_order_msg) == 50);
 
-    struct ouch_cancel_order {
+    struct cancel_order_msg {
         char msg_type; // 'X'
         char order_token[14];
     } __attribute__((packed));
-    static_assert(sizeof(ouch_cancel_order) == 15);
+    static_assert(sizeof(cancel_order_msg) == 15);
 
-    struct ouch_order_accepted {
+    struct order_accepted_msg {
         char msg_type; // 'A'
         u64 timestamp;              // UNIX time in nanoseconds
         char order_token[14];
@@ -50,18 +50,18 @@ namespace ouch {
         u64 pre_trade_quantity;
         u64 display_quantity;
     } __attribute__((packed));
-    static_assert(sizeof(ouch_order_accepted) == 130);
+    static_assert(sizeof(order_accepted_msg) == 130);
 
     // covers rejected orders AND rejected cancels
-    struct ouch_order_rejected {
+    struct order_rejected_msg {
         char msg_type; // 'J'
         u64 timestamp;
         char order_token[14];
         i32 reject_code;
     } __attribute__((packed));
-    static_assert(sizeof(ouch_order_rejected) == 27);
+    static_assert(sizeof(order_rejected_msg) == 27);
 
-    struct ouch_cancel_accepted {
+    struct cancel_accepted_msg {
         char msg_type; // 'C'
         u64 timestamp;
         char order_token[14];
@@ -70,10 +70,10 @@ namespace ouch {
         u64 order_id;
         u8 reason; // 1 canceled by user, 9 canceled by system
     } __attribute__((packed));
-    static_assert(sizeof(ouch_cancel_accepted) == 37);
+    static_assert(sizeof(cancel_accepted_msg) == 37);
 
     // not included in project description, but I think I should be implementing this
-    struct ouch_order_executed {
+    struct order_executed_msg {
         char msg_type;              // 'E'
         u64 timestamp;              // UNIX time in nanoseconds
         char order_token[14];
@@ -84,7 +84,7 @@ namespace ouch {
         u8 client_category;         // 1 client, 2 house, 7 fund, ... (unused on VIOP)
         char reserved[16];
     } __attribute__((packed));
-    static_assert(sizeof(ouch_order_executed) == 68);
+    static_assert(sizeof(order_executed_msg) == 68);
 
 
     template <typename... Ts>
@@ -93,12 +93,11 @@ namespace ouch {
     }
 
     constexpr u32 MAX_OUCH_MSG_SZ = max_sizeof<
-        ouch_enter_order,
-        ouch_cancel_order,
-        ouch_order_accepted,
-        ouch_order_executed,
-        ouch_order_rejected,
-        ouch_cancel_accepted
+        enter_order_msg,
+        cancel_order_msg,
+        order_accepted_msg,
+        order_executed_msg,
+        order_rejected_msg,
+        cancel_accepted_msg
     >();
 }
-

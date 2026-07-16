@@ -22,10 +22,10 @@ namespace ouch {
         void on_login_accepted(u64 seq_num);
         void on_login_rejected(char reject_reason);
 
-        void on_order_accepted(const ouch_order_accepted& msg);
-        void on_order_rejected(const ouch_order_rejected& msg);
-        void on_order_executed(const ouch_order_executed& msg);
-        void on_cancel_accepted(const ouch_cancel_accepted& msg);
+        void on_order_accepted(const order_accepted_msg& msg);
+        void on_order_rejected(const order_rejected_msg& msg);
+        void on_order_executed(const order_executed_msg& msg);
+        void on_cancel_accepted(const cancel_accepted_msg& msg);
 
         void on_disconnect();
 

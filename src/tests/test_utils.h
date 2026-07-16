@@ -1,8 +1,10 @@
 #pragma once
 
+#include <charconv>
 #include <random>
 #include "types.h"
 #include "io/backend_test.h"
+#include "soup/Session.h"
 #include "tcp/socket.h"
 
 inline int g_failures = 0;
@@ -17,7 +19,7 @@ constexpr u16 LOCAL_PORT{1}, REMOTE_PORT{2};
 
 inline u8 dummy_mac[6]{};
 
-struct fake_peer {
+struct fake_tcp_peer {
     u32 seq = 1000;
 
     void inject(tcp::socket& sock, u8 flags, u32 recv_next = 0, std::span<const std::byte> payload = {}) {
@@ -52,6 +54,50 @@ struct fake_peer {
     }
 };
 
+struct fake_soup_peer {
+    std::string_view session_name = "dümen";
+    u64 cur_seq = 1;
+
+    void accept_login(tcp::socket& sock, fake_tcp_peer& tcp_peer, u64 seq = 1) {
+        std::array<std::byte, soup::LOGIN_ACCEPTED_SZ + 2> la{};
+        *reinterpret_cast<u16*>(la.data()) = to_net<u16>(soup::LOGIN_ACCEPTED_SZ);
+        la[2] = static_cast<std::byte>(soup::LOGIN_ACCEPTED);
+
+        std::memset(la.data() + 3, ' ', soup::MAX_SESSION_SZ + soup::MAX_SEQUENCE_SZ);
+        std::memcpy(la.data() + 3 + soup::MAX_SESSION_SZ - session_name.size(), session_name.data(), session_name.size());
+
+        char seq_text[20];
+        auto [end, _] = std::to_chars(seq_text, seq_text + sizeof(seq_text), seq);
+
+        cur_seq = seq;
+
+        std::memcpy(la.data() + la.size() - (end - seq_text), seq_text, end - seq_text);
+
+        tcp_peer.inject_data(sock, la);
+    }
+
+    void reject_login(tcp::socket& sock, fake_tcp_peer& tcp_peer) {
+        std::array<std::byte, soup::LOGIN_REJECTED_SZ + 2> la{};
+        *reinterpret_cast<u16*>(la.data()) = to_net<u16>(soup::LOGIN_REJECTED_SZ);
+        la[2] = static_cast<std::byte>(soup::LOGIN_REJECTED);
+        la[3] = static_cast<std::byte>('A');
+        tcp_peer.inject_data(sock, la);
+    }
+
+    void send_sequenced(tcp::socket& sock, fake_tcp_peer& tcp_peer) {
+        ouch::order_accepted_msg msg{ouch::ORDER_ACCEPTED_VAL};
+        std::array<std::byte, sizeof(msg) + 3> ss{};
+
+        *reinterpret_cast<u16*>(ss.data()) = to_net<u16>(sizeof(msg) + 1);
+        ss[2] = static_cast<std::byte>(soup::SEQUENCED_DATA);
+        std::memcpy(ss.data() + 3, &msg, sizeof(msg));
+
+        ++cur_seq;
+
+        tcp_peer.inject_data(sock, ss);
+    }
+};
+
 inline net::tcp_hdr* tcp_of(std::vector<std::byte>& packet) {
     return reinterpret_cast<net::tcp_hdr*>(packet.data() + ETH_HDR_SZ + IP_HDR_SZ);
 }
@@ -77,17 +123,32 @@ inline void drain(tcp::socket& sock) {
         ++ready_cnt; \
     CHECK(sock.test_ctx().rx_free_stk.size() + sock.test_tcb().rx_out_of_order.size() + io::test::g_rx_avail.size() + io::test::g_rx_pending.size() + ready_cnt == io::N_RX_BUFS);
 
-#define establish \
+#define establish_tcp \
     io::test::test_reset(); \
     tcp::socket sock; \
-    fake_peer peer; \
+    fake_tcp_peer tcp_peer; \
     auto& cap = io::test::g_sent_captured; \
     CHECK(sock.bind(LOCAL_IP, LOCAL_PORT, REMOTE_IP, REMOTE_PORT, dummy_mac, dummy_mac)); \
     CHECK(sock.connect()); \
-    peer.inject(sock, SYN_FLAG | ACK_FLAG); \
+    tcp_peer.inject(sock, SYN_FLAG | ACK_FLAG); \
     sock.poll(); \
     CHECK(sock.test_tcb().state == tcp::fsm::ESTABLISHED); \
     CHECK(cap.size() == 2);
+
+#define establish_soup \
+    establish_tcp \
+    ouch::Application app; \
+    soup::Session sess{sock, app}; \
+    fake_soup_peer soup_peer; \
+    CHECK(sess.test_session_state() == soup::SessionState::Disconnected); \
+    sess.login(username, pass); \
+    CHECK(sess.test_session_state() == soup::SessionState::LoggingIn); \
+    soup_peer.accept_login(sock, tcp_peer); \
+    sock.poll(); \
+    sess.poll(); \
+    CHECK(sess.is_logged_in()); \
+    CHECK(sess.test_seq_num() == 1); \
+
 
 inline auto make_byte_span = [](auto& container) {
     return std::span{reinterpret_cast<std::byte*>(container.data()), container.size()};

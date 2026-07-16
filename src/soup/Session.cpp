@@ -73,12 +73,14 @@ namespace soup {
         *reinterpret_cast<u16*>(logout_packet.data()) = to_net<u16>(1);
         logout_packet[2] = static_cast<std::byte>('O');
 
-        if (sock.send(logout_packet)) {
-            state = SessionState::Disconnected;
-            return true;
-        }
+        if (!sock.send(logout_packet)) [[unlikely]]
+            return false;
 
-        return false;
+        state = SessionState::LoggedOut;
+        have_session = false;
+        sock.close();
+
+        return true;
     }
 
     void Session::handle_rx() {
@@ -155,7 +157,7 @@ namespace soup {
 
             switch (soup_msg_type) {
                 case LOGIN_ACCEPTED: {
-                    if (soup_len != 31) {
+                    if (soup_len != LOGIN_ACCEPTED_SZ) {
                         LOG_ERROR("Expected soupbintcp len 31 for LOGIN ACCEPTED, received %u. Aborting...", soup_len);
                         goto fatal;
                     }
@@ -173,13 +175,14 @@ namespace soup {
                     break;
                 }
                 case LOGIN_REJECTED: {
-                    if (soup_len != 2) {
+                    if (soup_len != LOGIN_REJECTED_SZ) {
                         LOG_ERROR("Expected soupbintcp len 2 for LOGIN REJECTED, received %u. Aborting...", soup_len);
                         goto fatal;
                     }
 
                     state = SessionState::Disconnected;
                     have_session = false;
+
                     const char rej_reason = static_cast<char>(*(cur_ptr + offset));
                     advance(1);
                     LOG_INFO("Reject reason: %c", rej_reason);

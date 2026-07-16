@@ -14,6 +14,9 @@ namespace soup {
     constexpr char SEQUENCED_DATA = 'S';
     constexpr char UNSEQUENCED_DATA = 'U';
 
+    constexpr int LOGIN_ACCEPTED_SZ = 31;
+    constexpr int LOGIN_REJECTED_SZ = 2;
+
     constexpr int MAX_USERNAME_SZ = 6;
     constexpr int MAX_PASSWORD_SZ = 10;
     constexpr int MAX_SESSION_SZ = 10;
@@ -22,7 +25,8 @@ namespace soup {
     enum class SessionState {
         Disconnected,
         LoggingIn,
-        Active
+        Active,
+        LoggedOut
     };
 
     class Session {
@@ -42,6 +46,7 @@ namespace soup {
 
         [[nodiscard]] bool is_logged_in() const { return state == SessionState::Active; }
         [[nodiscard]] bool is_disconnected() const { return state == SessionState::Disconnected; }
+        [[nodiscard]] bool is_logged_out() const { return state == SessionState::LoggedOut; }
         void reset() { state = SessionState::Disconnected; }
 
     private:
@@ -63,5 +68,10 @@ namespace soup {
         u64 seq_num = 0;
 
         bool have_session = false;
+#ifdef TCP_TEST_HOOKS
+    public:
+        SessionState& test_session_state() { return state; }
+        [[nodiscard]] u64 test_seq_num() const { return seq_num; }
+#endif
     };
 }

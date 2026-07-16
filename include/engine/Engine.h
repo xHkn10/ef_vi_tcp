@@ -44,10 +44,14 @@ namespace engine {
                 }
                 case Phase::Active: [[likely]] {
                     acc.session.poll();
-                    if (acc.session.is_disconnected() || !acc.sock.is_established()) [[unlikely]]
+                    if (acc.session.is_logged_out()) [[unlikely]]
+                        acc.phase = Phase::Stopped;
+                    else if (acc.session.is_disconnected() || !acc.sock.is_established()) [[unlikely]]
                         teardown(acc);
                     break;
                 }
+                case Phase::Stopped:
+                    break;
             }
         }
     private:

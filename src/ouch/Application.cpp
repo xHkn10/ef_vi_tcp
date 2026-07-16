@@ -10,17 +10,17 @@ namespace ouch {
             LOG_ERROR("Not logged into a session");
             return false;
         }
-        if (token.size() > sizeof(ouch_enter_order::order_token)) {
+        if (token.size() > sizeof(enter_order_msg::order_token)) {
             LOG_ERROR("Token size too big, cannot be %lu bytes", token.size());
             return false;
         }
-        if (account.size() > sizeof(ouch_enter_order::client_account)) {
+        if (account.size() > sizeof(enter_order_msg::client_account)) {
             LOG_ERROR("Client account size too big, cannot be %lu bytes", account.size());
             return false;
         }
 
-        ouch_enter_order order{
-            ENTER_ORDER,
+        enter_order_msg order{
+            ENTER_ORDER_VAL,
             {},
             to_net(book_id),
             side,
@@ -32,10 +32,10 @@ namespace ouch {
         };
 
         std::memcpy(order.order_token, token.data(), token.size());
-        std::memset(order.order_token + token.size(), ' ', sizeof(ouch_enter_order::order_token) - token.size());
+        std::memset(order.order_token + token.size(), ' ', sizeof(enter_order_msg::order_token) - token.size());
 
         std::memcpy(order.client_account, account.data(), account.size());
-        std::memset(order.client_account + account.size(), ' ', sizeof(ouch_enter_order::client_account) - account.size());
+        std::memset(order.client_account + account.size(), ' ', sizeof(enter_order_msg::client_account) - account.size());
 
         return session->send_unsequenced(std::as_bytes(std::span{&order, 1}));
     }
@@ -45,18 +45,18 @@ namespace ouch {
             LOG_ERROR("Not logged into a session");
             return false;
         }
-        if (token.size() > sizeof(ouch_cancel_order::order_token)) {
+        if (token.size() > sizeof(cancel_order_msg::order_token)) {
             LOG_ERROR("Token size too big, cannot be %lu bytes", token.size());
             return false;
         }
 
-        ouch_cancel_order cancel{
-            CANCEL_ORDER,
+        cancel_order_msg cancel{
+            CANCEL_ORDER_VAL,
             {}
         };
 
         std::memcpy(cancel.order_token, token.data(), token.size());
-        std::memset(cancel.order_token + token.size(), ' ', sizeof(ouch_cancel_order::order_token) - token.size());
+        std::memset(cancel.order_token + token.size(), ' ', sizeof(cancel_order_msg::order_token) - token.size());
 
         return session->send_unsequenced(std::as_bytes(std::span{&cancel, 1}));
     }
@@ -64,36 +64,36 @@ namespace ouch {
     // OuchApplication::on_message's span includes the OUCH msg type char
     void Application::on_message(std::span<std::byte> ouch_msg) {
         switch (const char msg_type = static_cast<char>(ouch_msg[0])) {
-            case ORDER_ACCEPTED: {
-                if (ouch_msg.size() != sizeof(ouch_order_accepted)) {
-                    LOG_ERROR("Expected %lu bytes, got %lu bytes", sizeof(ouch_order_accepted), ouch_msg.size());
+            case ORDER_ACCEPTED_VAL: {
+                if (ouch_msg.size() != sizeof(order_accepted_msg)) {
+                    LOG_ERROR("Expected %lu bytes, got %lu bytes", sizeof(order_accepted_msg), ouch_msg.size());
                     break;
                 }
-                on_order_accepted(*reinterpret_cast<ouch_order_accepted*>(ouch_msg.data())); // dc if this is UB
+                on_order_accepted(*reinterpret_cast<order_accepted_msg*>(ouch_msg.data())); // dc if this is UB
                 break;
             }
-            case ORDER_EXECUTED: {
-                if (ouch_msg.size() != sizeof(ouch_order_executed)) {
-                    LOG_ERROR("Expected %lu bytes, got %lu bytes", sizeof(ouch_order_executed), ouch_msg.size());
+            case ORDER_EXECUTED_VAL: {
+                if (ouch_msg.size() != sizeof(order_executed_msg)) {
+                    LOG_ERROR("Expected %lu bytes, got %lu bytes", sizeof(order_executed_msg), ouch_msg.size());
                     break;
                 }
-                on_order_executed(*reinterpret_cast<ouch_order_executed*>(ouch_msg.data()));
+                on_order_executed(*reinterpret_cast<order_executed_msg*>(ouch_msg.data()));
                 break;
             }
-            case ORDER_REJECTED: {
-                if (ouch_msg.size() != sizeof(ouch_order_rejected)) {
-                    LOG_ERROR("Expected %lu bytes, got %lu bytes", sizeof(ouch_order_rejected), ouch_msg.size());
+            case ORDER_REJECTED_VAL: {
+                if (ouch_msg.size() != sizeof(order_rejected_msg)) {
+                    LOG_ERROR("Expected %lu bytes, got %lu bytes", sizeof(order_rejected_msg), ouch_msg.size());
                     break;
                 }
-                on_order_rejected(*reinterpret_cast<ouch_order_rejected*>(ouch_msg.data()));
+                on_order_rejected(*reinterpret_cast<order_rejected_msg*>(ouch_msg.data()));
                 break;
             }
-            case CANCEL_ACCEPTED: {
-                if (ouch_msg.size() != sizeof(ouch_cancel_accepted)) {
-                    LOG_ERROR("Expected %lu bytes, got %lu bytes", sizeof(ouch_cancel_accepted), ouch_msg.size());
+            case CANCEL_ACCEPTED_VAL: {
+                if (ouch_msg.size() != sizeof(cancel_accepted_msg)) {
+                    LOG_ERROR("Expected %lu bytes, got %lu bytes", sizeof(cancel_accepted_msg), ouch_msg.size());
                     break;
                 }
-                on_cancel_accepted(*reinterpret_cast<ouch_cancel_accepted*>(ouch_msg.data()));
+                on_cancel_accepted(*reinterpret_cast<cancel_accepted_msg*>(ouch_msg.data()));
                 break;
             }
             default:
@@ -101,19 +101,19 @@ namespace ouch {
         }
     }
 
-    void Application::on_order_accepted(const ouch_order_accepted& msg) {
+    void Application::on_order_accepted(const order_accepted_msg& msg) {
         LOG_INFO("Order accepted");
     }
 
-    void Application::on_order_rejected(const ouch_order_rejected& msg) {
+    void Application::on_order_rejected(const order_rejected_msg& msg) {
         LOG_INFO("Order rejected");
     }
 
-    void Application::on_order_executed(const ouch_order_executed& msg) {
+    void Application::on_order_executed(const order_executed_msg& msg) {
         LOG_INFO("Order executed");
     }
 
-    void Application::on_cancel_accepted(const ouch_cancel_accepted& msg) {
+    void Application::on_cancel_accepted(const cancel_accepted_msg& msg) {
         LOG_INFO("Cancel accepted");
     }
 
