@@ -24,6 +24,10 @@ void test_soup_login_rej();
 void test_soup_logout();
 void test_soup_seq_num();
 void test_soup_resume_login();
+void test_soup_fragmentation();
+void test_soup_heartbeat();
+void test_soup_end_of_session();
+void test_soup_multiple_sequenced_in_one_segment();
 
 static auto run_tcp_tests = [] {
     test_handshake();
@@ -51,6 +55,10 @@ static auto run_soup_tests = [] {
     test_soup_logout();
     test_soup_seq_num();
     test_soup_resume_login();
+    test_soup_fragmentation();
+    test_soup_heartbeat();
+    test_soup_end_of_session();
+    test_soup_multiple_sequenced_in_one_segment();
 };
 
 static auto run_engine_tests = [] {

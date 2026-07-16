@@ -4,8 +4,8 @@
 #include "ouch/Application.h"
 
 namespace soup {
-    constexpr int HEARTBEAT_MS = 1000;
-    constexpr int RX_TIMEOUT_MS = 15000;
+    constexpr u64 HEARTBEAT_MS = 1000;
+    constexpr u64 RX_TIMEOUT_MS = 15000;
 
     constexpr char LOGIN_ACCEPTED = 'A';
     constexpr char LOGIN_REJECTED = 'J';
@@ -70,8 +70,9 @@ namespace soup {
         bool have_session = false;
 #ifdef TCP_TEST_HOOKS
     public:
-        SessionState& test_session_state() { return state; }
+        [[nodiscard]] SessionState& test_session_state() { return state; }
         [[nodiscard]] u64 test_seq_num() const { return seq_num; }
+        [[nodiscard]] bool test_have_session() const { return have_session; }
 #endif
     };
 }

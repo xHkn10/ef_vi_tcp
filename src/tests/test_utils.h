@@ -19,6 +19,33 @@ constexpr u16 LOCAL_PORT{1}, REMOTE_PORT{2};
 
 inline u8 dummy_mac[6]{};
 
+inline net::tcp_hdr* tcp_of(std::vector<std::byte>& packet) {
+    return reinterpret_cast<net::tcp_hdr*>(packet.data() + ETH_HDR_SZ + IP_HDR_SZ);
+}
+inline net::ip_hdr* ip_of(std::vector<std::byte>& packet) {
+    return reinterpret_cast<net::ip_hdr*>(packet.data() + ETH_HDR_SZ);
+}
+inline std::span<std::byte> payload_of(std::vector<std::byte>& packet) {
+    const int tcp_hdr_len = (tcp_of(packet)->doffset_reserved >> 4) * 4;
+    const u32 payload_len = from_net(ip_of(packet)->len) - IP_HDR_SZ - tcp_hdr_len;
+    return {reinterpret_cast<std::byte*>(tcp_of(packet)) + tcp_hdr_len, payload_len};
+}
+
+inline void drain(tcp::socket& sock) {
+    while (!io::test::g_rx_pending.empty() || !io::test::g_tx_done.empty())
+        sock.poll();
+}
+
+inline auto get_sequenced_packet() {
+    ouch::order_accepted_msg msg{ouch::ORDER_ACCEPTED_VAL};
+    std::array<std::byte, sizeof(msg) + 3> ss{};
+
+    *reinterpret_cast<u16*>(ss.data()) = to_net<u16>(sizeof(msg) + 1);
+    ss[2] = static_cast<std::byte>(soup::SEQUENCED_DATA);
+    std::memcpy(ss.data() + 3, &msg, sizeof(msg));
+    return ss;
+}
+
 struct fake_tcp_peer {
     u32 seq = 1000;
 
@@ -85,35 +112,19 @@ struct fake_soup_peer {
     }
 
     void send_sequenced(tcp::socket& sock, fake_tcp_peer& tcp_peer) {
-        ouch::order_accepted_msg msg{ouch::ORDER_ACCEPTED_VAL};
-        std::array<std::byte, sizeof(msg) + 3> ss{};
-
-        *reinterpret_cast<u16*>(ss.data()) = to_net<u16>(sizeof(msg) + 1);
-        ss[2] = static_cast<std::byte>(soup::SEQUENCED_DATA);
-        std::memcpy(ss.data() + 3, &msg, sizeof(msg));
-
+        auto ss = get_sequenced_packet();
         ++cur_seq;
-
         tcp_peer.inject_data(sock, ss);
+    }
+
+    void end_session(tcp::socket& sock, fake_tcp_peer& peer) {
+        std::array<std::byte, 3> end_of_session{};
+        *reinterpret_cast<u16*>(end_of_session.data()) = to_net<u16>(1);
+        end_of_session[2] = static_cast<std::byte>('Z');
+        peer.inject_data(sock, end_of_session);
     }
 };
 
-inline net::tcp_hdr* tcp_of(std::vector<std::byte>& packet) {
-    return reinterpret_cast<net::tcp_hdr*>(packet.data() + ETH_HDR_SZ + IP_HDR_SZ);
-}
-inline net::ip_hdr* ip_of(std::vector<std::byte>& packet) {
-    return reinterpret_cast<net::ip_hdr*>(packet.data() + ETH_HDR_SZ);
-}
-inline std::span<std::byte> payload_of(std::vector<std::byte>& packet) {
-    const int tcp_hdr_len = (tcp_of(packet)->doffset_reserved >> 4) * 4;
-    const u32 payload_len = from_net(ip_of(packet)->len) - IP_HDR_SZ - tcp_hdr_len;
-    return {reinterpret_cast<std::byte*>(tcp_of(packet)) + tcp_hdr_len, payload_len};
-}
-
-inline void drain(tcp::socket& sock) {
-    while (!io::test::g_rx_pending.empty() || !io::test::g_tx_done.empty())
-        sock.poll();
-}
 
 #define resource_checks \
     sock.poll(); \
@@ -144,10 +155,10 @@ inline void drain(tcp::socket& sock) {
     sess.login(username, pass); \
     CHECK(sess.test_session_state() == soup::SessionState::LoggingIn); \
     soup_peer.accept_login(sock, tcp_peer); \
-    sock.poll(); \
-    sess.poll(); \
+    sock.poll(); sess.poll(); \
     CHECK(sess.is_logged_in()); \
     CHECK(sess.test_seq_num() == 1); \
+    CHECK(sess.test_have_session()); \
 
 
 inline auto make_byte_span = [](auto& container) {

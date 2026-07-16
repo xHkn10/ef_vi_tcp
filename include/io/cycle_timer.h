@@ -23,7 +23,7 @@ namespace io {
         static u64 now() {
             return __rdtsc();
         }
-        static void elapse(const int ms) {
+        static void elapse(const u64 ms) {
             const auto start = now();
             for (int i = 0; ; ++i) {
                 if ((i & ((1 << 16) - 1)) == 0)

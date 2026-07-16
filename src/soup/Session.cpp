@@ -202,10 +202,11 @@ namespace soup {
                         LOG_ERROR("Expected soupbintcp len 1 for END OF SESSION, received %u. Aborting...", soup_len);
                         goto fatal;
                     }
-                    state = SessionState::Disconnected;
+                    state = SessionState::LoggedOut;
                     have_session = false;
 
                     app.on_end_of_session();
+                    sock.close();
                     break;
                 }
                 case SEQUENCED_DATA: [[likely]] {
