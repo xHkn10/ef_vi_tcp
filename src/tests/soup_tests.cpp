@@ -111,7 +111,7 @@ void test_soup_fragmentation() {
 void test_soup_heartbeat() {
     establish_soup
 
-    int init_cap_sz = cap.size();
+    const int init_cap_sz = cap.size();
 
     io::cycle_timer::elapse(soup::HEARTBEAT_MS);
 
@@ -160,6 +160,140 @@ void test_soup_multiple_sequenced_in_one_segment() {
     sock.poll(); sess.poll();
 
     CHECK(sess.test_seq_num() == N + 1);
+
+    resource_checks
+}
+
+void test_soup_unknown_type_skip() {
+    establish_soup
+
+    const auto seq_pkt = get_sequenced_packet();
+
+    // unknown type + known type
+
+    std::array<std::byte, 8 + sizeof(seq_pkt)> buf{};
+    *reinterpret_cast<u16*>(buf.data()) = to_net<u16>(6);
+    buf[2] = static_cast<std::byte>('Q');
+    std::memcpy(buf.data() + 8, seq_pkt.data(), seq_pkt.size());
+
+    tcp_peer.inject_data(sock, buf);
+    sock.poll(); sess.poll();
+
+    CHECK(sess.is_logged_in());
+    CHECK(sess.test_seq_num() == 2);
+
+    resource_checks
+}
+
+void test_soup_zero_length_fatal() {
+    establish_soup
+
+    std::array<std::byte, 3> bad{};
+
+    tcp_peer.inject_data(sock, bad);
+    sock.poll(); sess.poll();
+
+    CHECK(sess.is_disconnected());
+    CHECK(sock.is_closed());
+    CHECK(tcp_of(cap.back())->control & RST_FLAG);
+
+    resource_checks
+}
+
+void test_soup_relogin_after_reject() {
+    establish_tcp
+    ouch::Application app;
+    soup::Session sess{sock, app};
+    fake_soup_peer soup_peer;
+
+    sess.login(username, pass);
+    soup_peer.reject_login(sock, tcp_peer);
+    sock.poll(); sess.poll();
+
+    CHECK(sess.is_disconnected());
+    CHECK(!sess.test_have_session());
+    CHECK(!app.enter_order("t", 1, 'B', 1, 1, 0, 0, "a"));
+
+    CHECK(sess.login(username, pass));
+
+    const auto soup = payload_of(cap.back());
+    CHECK(soup.size() == 49);
+    CHECK(static_cast<char>(soup[2]) == 'L');
+    CHECK(std::memcmp(soup.data() + 19, "          ", 10) == 0);
+    CHECK(static_cast<char>(soup[48]) == '1');
+    CHECK(static_cast<char>(soup[47]) == ' ');
+
+    resource_checks
+}
+
+void test_soup_rx_timeout() {
+    establish_soup
+
+    io::cycle_timer::elapse(soup::RX_TIMEOUT_MS);
+    sock.poll(); sess.poll();
+
+    CHECK(sess.is_disconnected());
+    CHECK(sock.is_closed());
+    CHECK(tcp_of(cap.back())->control & RST_FLAG);
+
+    resource_checks
+}
+
+void test_soup_heartbeat2() {
+    establish_soup
+
+    io::cycle_timer::elapse(DELAYED_ACK_TIMEOUT_MILLISECONDS);
+    sock.poll();
+
+    const auto before = cap.size();
+
+    io::cycle_timer::elapse(soup::HEARTBEAT_MS / 2);
+    sock.poll(); sess.poll();
+    CHECK(cap.size() == before);
+
+    std::array<std::byte, 8> junk{};
+    CHECK(sess.send_unsequenced(junk));
+    tcp_peer.inject(sock, ACK_FLAG);
+    sock.poll();
+
+    io::cycle_timer::elapse(soup::HEARTBEAT_MS / 2);
+    sock.poll(); sess.poll();
+
+    CHECK(cap.size() == before + 1);
+
+    io::cycle_timer::elapse(soup::HEARTBEAT_MS / 2 + 1);
+    sock.poll(); sess.poll();
+    CHECK(cap.size() == before + 2);
+
+    const auto heart = payload_of(cap.back());
+    CHECK(heart.size() == 3);
+    CHECK(heart[2] == static_cast<std::byte>('R'));
+
+    resource_checks
+}
+
+void test_soup_enter_order_wire() {
+    establish_soup
+
+    CHECK(app.enter_order("tok1", 42, 'B', 100, 1234, 0, 1, "acct"));
+
+    auto pkt = payload_of(cap.back());
+
+    CHECK(pkt.size() == sizeof(ouch::enter_order_msg) + 3);
+    CHECK(*reinterpret_cast<u16*>(pkt.data()) == to_net<u16>(sizeof(ouch::enter_order_msg) + 1));
+    CHECK(pkt[2] == static_cast<std::byte>('U'));
+
+    const auto* order = reinterpret_cast<ouch::enter_order_msg*>(pkt.data() + 3);
+
+    CHECK(order->msg_type == ouch::ENTER_ORDER_VAL);
+    CHECK(std::memcmp(order->order_token, "tok1          ", 14) == 0);
+    CHECK(order->order_book_id == to_net<u32>(42));
+    CHECK(order->side == 'B');
+    CHECK(order->quantity == to_net<u64>(100));
+    CHECK(order->price == static_cast<i32>(to_net<u32>(1234)));
+    CHECK(order->time_in_force == 0);
+    CHECK(order->open_close == 1);
+    CHECK(std::memcmp(order->client_account, "acct            ", 16) == 0);
 
     resource_checks
 }

@@ -4,9 +4,14 @@
 #include "ouch/Application.h"
 
 namespace soup {
+#ifdef TCP_TEST_HOOKS
+    // so we don't wait forever on tests
+    constexpr u64 HEARTBEAT_MS = 20;
+    constexpr u64 RX_TIMEOUT_MS = 300;
+#else
     constexpr u64 HEARTBEAT_MS = 1000;
     constexpr u64 RX_TIMEOUT_MS = 15000;
-
+#endif
     constexpr char LOGIN_ACCEPTED = 'A';
     constexpr char LOGIN_REJECTED = 'J';
     constexpr char HEARTBEAT = 'H';

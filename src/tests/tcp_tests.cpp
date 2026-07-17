@@ -450,3 +450,23 @@ void test_huge_send_recv_simultaneously() {
 
     resource_checks
 }
+
+void test_tcp_time_wait_transition() {
+    establish_tcp
+
+    CHECK(sock.close());
+    CHECK(sock.test_tcb().state == tcp::fsm::FIN_WAIT1);
+
+    tcp_peer.inject(sock, FIN_FLAG | ACK_FLAG);
+
+    sock.poll();
+    CHECK(sock.test_tcb().state == tcp::fsm::TIME_WAIT);
+
+    io::cycle_timer::elapse(TIME_WAIT_MILLISECONDS);
+
+    sock.poll();
+
+    CHECK(sock.is_closed());
+
+    resource_checks
+}

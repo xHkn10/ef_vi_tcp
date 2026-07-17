@@ -22,10 +22,18 @@ constexpr int IP_D_ADDR_OFFSET = 20;
 constexpr int TCP_SEQ_NUM_OFFSET = 32;
 constexpr int TCP_ACK_NUM_OFFSET = 36;
 
-constexpr int RETRANSMISSION_TIMEOUT_MILLISECONDS = 200;
-constexpr int CONNECT_TIMEOUT_MILLISECONDS = 1000;
-constexpr int DELAYED_ACK_TIMEOUT_MILLISECONDS = 100;
-constexpr int TIME_WAIT_MILLISECONDS = 60'000; // Linux is also 60 seconds
+#ifdef TCP_TEST_HOOKS
+    // so we don't wait forever in tests
+    constexpr int RETRANSMISSION_TIMEOUT_MILLISECONDS = 4;
+    constexpr int CONNECT_TIMEOUT_MILLISECONDS = 20;
+    constexpr int DELAYED_ACK_TIMEOUT_MILLISECONDS = 2;
+    constexpr int TIME_WAIT_MILLISECONDS = 60;
+#else
+    constexpr int RETRANSMISSION_TIMEOUT_MILLISECONDS = 200;
+    constexpr int CONNECT_TIMEOUT_MILLISECONDS = 1000;
+    constexpr int DELAYED_ACK_TIMEOUT_MILLISECONDS = 100;
+    constexpr int TIME_WAIT_MILLISECONDS = 60'000; // linux is also 60s
+#endif
 
 
 namespace net {

@@ -125,6 +125,7 @@ struct fake_soup_peer {
         *reinterpret_cast<u16*>(end_of_session.data()) = to_net<u16>(1);
         end_of_session[2] = static_cast<std::byte>('Z');
         peer.inject_data(sock, end_of_session);
+        peer.inject(sock, FIN_FLAG | ACK_FLAG);
     }
 };
 
@@ -163,6 +164,53 @@ struct fake_soup_peer {
     CHECK(sess.test_seq_num() == 1); \
     CHECK(sess.test_have_session()); \
 
+
+#define engine_setup \
+io::test::test_reset(); \
+Account acc{}; \
+acc.cfg.username = username; \
+acc.cfg.pass = pass; \
+fake_tcp_peer tcp_peer; \
+fake_soup_peer soup_peer; \
+auto& cap = io::test::g_sent_captured; \
+CHECK(acc.sock.bind(LOCAL_IP, LOCAL_PORT, REMOTE_IP, REMOTE_PORT, dummy_mac, dummy_mac));
+
+// Idle -> Connecting -> LoggingIn
+#define engine_connect \
+engine::Engine<1>::step(acc); \
+CHECK(acc.phase == Phase::Connecting); \
+CHECK(tcp_of(cap.back())->control == SYN_FLAG); \
+tcp_peer.inject(acc.sock, SYN_FLAG | ACK_FLAG); \
+acc.sock.poll(); \
+engine::Engine<1>::step(acc); \
+CHECK(acc.phase == Phase::LoggingIn); \
+CHECK(static_cast<char>(payload_of(cap.back())[2]) == 'L');
+
+#define engine_accept_login \
+soup_peer.accept_login(acc.sock, tcp_peer); \
+acc.sock.poll(); \
+engine::Engine<1>::step(acc); \
+CHECK(acc.phase == Phase::Active);
+
+#define establish_engine \
+engine_setup \
+engine_connect \
+engine_accept_login
+
+// 'Z' + peer FIN
+#define engine_end_session \
+soup_peer.end_session(acc.sock, tcp_peer); \
+acc.sock.poll(); \
+CHECK(acc.sock.test_tcb().state == tcp::fsm::CLOSE_WAIT); \
+engine::Engine<1>::step(acc); \
+CHECK(tcp_of(cap.back())->control == (FIN_FLAG | ACK_FLAG)); \
+CHECK(acc.phase == Phase::Stopped); \
+CHECK(acc.sock.test_tcb().state == tcp::fsm::LAST_ACK); \
+tcp_peer.inject(acc.sock, ACK_FLAG); \
+acc.sock.poll(); \
+CHECK(acc.sock.is_closed());
+
+#define engine_resource_checks { auto& sock = acc.sock; resource_checks }
 
 inline auto make_byte_span = [](auto& container) {
     return std::span{reinterpret_cast<std::byte*>(container.data()), container.size()};
