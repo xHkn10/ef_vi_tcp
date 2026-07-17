@@ -33,8 +33,8 @@ namespace io::test {
 
 namespace io {
     int context::init() {
-        if (int rc = mem_alloc(); rc)
-            return rc;
+        if (!mem_alloc())
+            return -ENOMEM;
         buf_init<true>();
         return 0;
     }

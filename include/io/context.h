@@ -1,5 +1,7 @@
 #pragma once
 
+#include <sys/mman.h>
+
 #include <etherfabric/vi.h>
 #include <etherfabric/memreg.h>
 #include <etherfabric/pd.h>
@@ -49,21 +51,27 @@ namespace io {
         int eventq_poll(ef_event* events, int batch_sz);
 
     private:
-        int mem_alloc() {
-            if (int rc = posix_memalign(&rx_mem, PAGE_SZ, N_RX_BUFS * BUF_SZ); rc != 0) {
-                LOG_ERROR("posix_memalign: %s", std::strerror(-rc));
-                return rc;
-            }
+        bool mem_alloc() {
+            auto huge_alloc = [](const u64 sz) -> void* {
+                const size_t huge_sz = (sz + HUGEPAGE_SZ - 1) / HUGEPAGE_SZ * HUGEPAGE_SZ;
+                void* p = mmap(nullptr, huge_sz, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB, -1, 0);
+                if (p == MAP_FAILED) {
+                    LOG_WARN("hugepage alloc failed: %s, falling back to 4K pages", std::strerror(errno));
+                    if (const int rc = posix_memalign(&p, HUGEPAGE_SZ, sz); rc != 0) {
+                        LOG_ERROR("posix_memalign also failed: %s", std::strerror(rc));
+                        p = nullptr;
+                    }
+                }
+                return p;
+            };
 
-            if (int rc = posix_memalign(&tx_mem, PAGE_SZ, N_TX_BUFS * BUF_SZ); rc != 0) {
-                LOG_ERROR("posix_memalign: %s", std::strerror(-rc));
-                return rc;
-            }
+            rx_mem = huge_alloc(N_RX_BUFS * BUF_SZ);
+            tx_mem = huge_alloc(N_TX_BUFS * BUF_SZ);
 
             rx_free_stk.reserve(N_RX_BUFS);
             tx_free_stk.reserve(N_TX_BUFS);
 
-            return 0;
+            return (rx_mem != nullptr) && (tx_mem != nullptr);
         }
 
         template <bool fake>
@@ -92,7 +100,7 @@ namespace io {
 
             int rx_fill_cnt = std::min<int>(receive_space(), N_RX_BUFS);
 
-            for (auto& pb : rx_pkt_bufs | std::views::take(rx_fill_cnt))
+            for (const auto& pb : rx_pkt_bufs | std::views::take(rx_fill_cnt))
                 receive_init(pb->dma_buf_addr, pb->id);
             receive_push();
 

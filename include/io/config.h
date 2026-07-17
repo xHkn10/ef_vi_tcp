@@ -21,7 +21,7 @@
 
 namespace io {
     constexpr int BUF_SZ = 2048;
-    constexpr int PAGE_SZ = 4096 * 1024;
+    constexpr int HUGEPAGE_SZ = 2 * 1024 * 1024;
     constexpr int N_RX_BUFS = 1024;
     constexpr int N_TX_BUFS = 1024;
     constexpr int N_BUFS = N_RX_BUFS + N_TX_BUFS;

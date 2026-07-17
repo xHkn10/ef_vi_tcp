@@ -24,8 +24,8 @@ namespace io {
             return rc;
         }
 
-        if (int rc = mem_alloc(); rc)
-            return rc;
+        if (!mem_alloc())
+            return -ENOMEM;
 
         if (int rc = ef_memreg_alloc(&rx_memreg, dh, &pd, dh, rx_mem, N_RX_BUFS * BUF_SZ); rc < 0) {
             LOG_ERROR("ef_memreg_alloc: %s", std::strerror(-rc));
