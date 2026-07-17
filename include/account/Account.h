@@ -8,7 +8,7 @@
 #include "tcp/socket.h"
 
 struct AccountConfig {
-    u8 smac[6], dmac[6];
+    std::array<u8, 6> smac, dmac;
     u32 local_ip, remote_ip;
     u16 local_port, remote_port;
     std::string_view username, pass;

@@ -17,7 +17,7 @@ namespace tcp {
         [[nodiscard]] bool is_closed() const { return tcb.state == fsm::CLOSED; }
         [[nodiscard]] bool is_established() const { return tcb.state == fsm::ESTABLISHED; }
 
-        bool bind(u32 local_ip, u16 local_port, u32 remote_ip, u16 remote_port, u8 dmac[6], u8 smac[6]);
+        bool bind(u32 local_ip, u16 local_port, u32 remote_ip, u16 remote_port, std::array<u8, 6> dmac, std::array<u8, 6> smac);
         bool connect();
 
         bool close();

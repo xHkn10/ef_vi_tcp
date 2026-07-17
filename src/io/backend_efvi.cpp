@@ -27,8 +27,6 @@ namespace io {
         if (int rc = mem_alloc(); rc)
             return rc;
 
-        buf_init<false>();
-
         if (int rc = ef_memreg_alloc(&rx_memreg, dh, &pd, dh, rx_mem, N_RX_BUFS * BUF_SZ); rc < 0) {
             LOG_ERROR("ef_memreg_alloc: %s", std::strerror(-rc));
             return rc;
@@ -38,6 +36,8 @@ namespace io {
             LOG_ERROR("ef_memreg_alloc: %s", std::strerror(-rc));
             return rc;
         }
+
+        buf_init<false>();
 
         return 0;
     }

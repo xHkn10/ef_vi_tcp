@@ -42,7 +42,7 @@ namespace tcp {
         }
     }
 
-    bool socket::bind(u32 local_ip, u16 local_port, u32 remote_ip, u16 remote_port, u8 dmac[6], u8 smac[6]) {
+    bool socket::bind(u32 local_ip, u16 local_port, u32 remote_ip, u16 remote_port, std::array<u8, 6> dmac, std::array<u8, 6> smac) {
         if (int rc = ctx.add_ip4_tcp_filter(local_ip, local_port); rc < 0) {
             LOG_ERROR("add_ip4_tcp_filter: %s", strerror(-rc));
             return false;
@@ -61,8 +61,8 @@ namespace tcp {
 
         for (auto& pb : ctx.tx_pkt_bufs) {
             net::eth_hdr* eth = net::get_eth_hdr(pb);
-            std::memcpy(eth->dmac, dmac, 6);
-            std::memcpy(eth->smac, smac, 6);
+            std::memcpy(eth->dmac, dmac.data(), 6);
+            std::memcpy(eth->smac, smac.data(), 6);
             net::get_ip_hdr(pb)->d_addr = to_net(remote_ip);
             net::get_tcp_hdr(pb)->dst_port = to_net(remote_port);
         }
