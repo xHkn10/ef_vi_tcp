@@ -45,8 +45,8 @@ namespace net {
 
     // 14 bytes
     struct eth_hdr {
-        u8 dmac[6];
-        u8 smac[6];
+        std::array<u8, 6> dmac;
+        std::array<u8, 6> smac;
         u16 ethertype; // ASSUMING ALWAYS 0x0800 (ipv4)
     } __attribute__((packed));
 

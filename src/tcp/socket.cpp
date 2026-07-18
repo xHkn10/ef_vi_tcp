@@ -26,7 +26,7 @@ namespace {
 
 namespace tcp {
     socket::socket() {
-        if (int rc = ctx.init(); rc < 0)
+        if (const int rc = ctx.init(); rc < 0)
             throw std::runtime_error("socket couldn't initialized, rc = " + std::to_string(rc));
 
         tcb = {};
@@ -36,11 +36,6 @@ namespace tcp {
         remote_port = 0;
         is_bound = false;
         is_listener = false;
-
-        for (io::pkt_buf* pb : ctx.tx_pkt_bufs) {
-            write_headers(pb);
-            pb->meta = {{pb->dma_buf + TCP_TOTAL_HDR_SZ, 0}, nullptr, 0, 2};
-        }
     }
 
     bool socket::bind(u32 local_ip, u16 local_port, u32 remote_ip, u16 remote_port, std::array<u8, 6> dmac, std::array<u8, 6> smac) {
@@ -58,12 +53,39 @@ namespace tcp {
             auto* eth = net::get_eth_hdr(pb);
             auto* tcp = net::get_tcp_hdr(pb);
             auto* ip = net::get_ip_hdr(pb);
-            std::memcpy(eth->dmac, dmac.data(), 6);
-            std::memcpy(eth->smac, smac.data(), 6);
-            ip->d_addr = to_net(remote_ip);
-            ip->s_addr = to_net(local_ip);
-            tcp->dst_port = to_net(remote_port);
-            tcp->src_port = to_net(local_port);
+
+            *eth = {
+                dmac,
+                smac,
+                to_net<u16>(0x0800)
+            };
+
+            *ip = {
+                0x45,
+                0, // No dscp, no ecn
+                0,
+                0,
+                to_net<u16>(0x4000),
+                255,
+                IPPROTO_TCP,
+                0,
+                to_net(local_ip),
+                to_net(remote_ip)
+            };
+
+            *tcp = {
+                to_net(local_port),
+                to_net(remote_port),
+                to_net(tcb.ISS),
+                0,
+                0x50,
+                0, // CWR, ECE, URG, ACK, PSH, RST, SYN, FIN; since this is a varying field, it should be always set explicitly
+                to_net<u16>(0xFFFF),
+                0,
+                0
+            };
+
+            pb->meta = {{pb->dma_buf + TCP_TOTAL_HDR_SZ, 0}, nullptr, 0, 2};
         }
 
         is_bound = true;
@@ -88,7 +110,7 @@ namespace tcp {
         remote_port = from_net(tcp->src_port);
 
         for (const auto& pb : ctx.tx_pkt_bufs) {
-            std::memcpy(net::get_eth_hdr(pb)->dmac, eth->smac, 6);
+            net::get_eth_hdr(pb)->dmac = eth->smac;
             net::get_ip_hdr(pb)->d_addr = to_net(remote_ip);
             net::get_tcp_hdr(pb)->dst_port = to_net(remote_port);
         }
@@ -223,40 +245,6 @@ namespace tcp {
         ctx.transmit_push();
 
         return n_bytes_sent;
-    }
-
-    void socket::write_headers(io::pkt_buf* pb) const {
-        net::eth_hdr eh{.ethertype = to_net<u16>(0x0800)}; // smac and dmac filled in bind
-
-        // NO ip options, NO ip fragmentation
-        net::ip_hdr ih{
-            0x45,
-            0, // No dscp, no ecn
-            0,
-            0,
-            to_net<u16>(0x4000),
-            255,
-            IPPROTO_TCP,
-            0,
-            to_net(local_ip),
-            to_net(remote_ip)
-        };
-
-        net::tcp_hdr th{
-            to_net(local_port),
-            to_net(remote_port),
-            to_net(tcb.ISS),
-            0,
-            0x50,
-            0, // CWR, ECE, URG, ACK, PSH, RST, SYN, FIN; since this is a varying field, it should be always set explicitly
-            to_net<u16>(0xFFFF),
-            0,
-            0
-        };
-
-        *net::get_eth_hdr(pb) = eh;
-        *net::get_ip_hdr(pb) = ih;
-        *net::get_tcp_hdr(pb) = th;
     }
 
     int socket::receive(std::span<std::byte> spn) {
