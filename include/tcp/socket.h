@@ -46,7 +46,6 @@ namespace tcp {
         void refill_rx_ring();
 
         static u32 generate_iss();
-        void write_headers(io::pkt_buf*) const;
 
         void accept_syn(io::pkt_buf*);
 
