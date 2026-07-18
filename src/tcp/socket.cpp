@@ -535,6 +535,7 @@ namespace tcp {
         while (auto* pb = tcb.tx_unacked.pop_front())
             if (--pb->meta.tx_ref_cnt == 0)
                 ctx.tx_free_stk.push_back(pb->id);
+
         while (auto* pb = tcb.rx_out_of_order.pop_front())
             ctx.rx_free_stk.push_back(pb->id);
 
