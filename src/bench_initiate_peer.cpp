@@ -27,7 +27,7 @@ int main() {
     }
 
     tcp::socket sock;
-    sock.bind(enp1s0f1_ip, local_port, enp1s0f0_ip, remote_port, enp1s0f0_mac, enp1s0f1_mac);
+    sock.bind(enp1s0f0_ip, local_port, enp1s0f1_ip, remote_port, enp1s0f1_mac, enp1s0f0_mac);
 
     constexpr int N = 10000;
     std::vector<u64> samples; samples.reserve(N);
@@ -40,12 +40,16 @@ int main() {
         } while (!sock.is_established());
         const auto t1 = io::cycle_timer::now();
         samples.push_back(static_cast<double>(t1 - t0) / io::cycle_timer::cycles_per_ms * 1000 * 1000);
+
+        sock.abort();
+        for (int j = 0; j < 20; ++j)
+            sock.poll();
     }
 
     std::ranges::sort(samples);
 
     std::printf(
-        "min: %luns, p50: %luns, p90: %luns, p95: %luns, p99: %luns, p999: %luns, max: %luns",
+        "min: %luns, p50: %luns, p90: %luns, p95: %luns, p99: %luns, p999: %luns, max: %luns\n",
         samples.front(),
         samples[N / 2],
         samples[90 * N / 100],
