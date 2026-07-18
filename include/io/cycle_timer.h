@@ -13,9 +13,9 @@ namespace io {
 
         static void calibrate() {
             using namespace std::chrono_literals;
-            u64 start = __rdtsc();
+            const auto start = __rdtsc();
             std::this_thread::sleep_for(10ms);
-            u64 end = __rdtsc();
+            const auto end = __rdtsc();
 
             cycles_per_ms = (end - start) / 10;
             ack_timeout_cycles = cycles_per_ms * DELAYED_ACK_TIMEOUT_MILLISECONDS;

@@ -20,7 +20,7 @@ namespace {
 }
 
 int main() {
-    static_assert(ENABLE_PASSIVE_OPEN, "build bench_peer with -DEFVI_TCP_BENCH_PEER");
+    static_assert(ENABLE_PASSIVE_OPEN);
 
     if (if_nametoindex(io::INTERFACE_NAME) == 0) {
         LOG_ERROR("Failed to find interface %s", io::INTERFACE_NAME);

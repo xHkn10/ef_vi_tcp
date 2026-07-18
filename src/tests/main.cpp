@@ -98,5 +98,5 @@ int main() {
     run_soup_tests();
     run_engine_tests();
 
-    printf("%d errors\n", g_failures);
+    std::printf("%d errors\n", g_failures);
 }
