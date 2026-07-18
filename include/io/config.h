@@ -40,6 +40,8 @@ namespace io {
     static_assert(POLL_BATCH_SZ >= EF_VI_EVENT_POLL_MIN_EVS, "event poll batch size too small\n");
     constexpr int REFILL_BATCH_SZ = 8;
 
-
     constexpr char INTERFACE_NAME[] = EFVI_TCP_INTERFACE;
+
+    constexpr bool USE_CTPIO = false;
+    constexpr int CTPIO_THRESH = 64;
 }

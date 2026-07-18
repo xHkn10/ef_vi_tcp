@@ -41,15 +41,14 @@ namespace io {
 
     void context::teardown() {}
 
-    void context::transmit(ef_addr, int len, int id) {
-        auto* pb = tx_pkt_bufs[id];
+    void context::transmit(pkt_buf* pb, int len) {
         auto* p = reinterpret_cast<std::byte*>(pb->dma_buf);
         test::g_sent_captured.emplace_back(p, p + len);
-        test::g_tx_done.push_back(id);
+        test::g_tx_done.push_back(pb->id);
     }
 
-    void context::transmit_init(ef_addr addr, int len, int id) {
-        transmit(addr, len, id);
+    void context::transmit_init(pkt_buf* pb, int len) {
+        transmit(pb, len);
     }
 
     void context::transmit_push() {}

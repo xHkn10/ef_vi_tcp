@@ -102,18 +102,7 @@ namespace tcp {
         if (ctx.tx_free_stk.empty()) [[unlikely]]
             return;
 
-        const auto* eth = net::get_eth_hdr(rx);
-        const auto* ip = net::get_ip_hdr(rx);
         const auto* tcp = net::get_tcp_hdr(rx);
-
-        remote_ip = from_net(ip->s_addr);
-        remote_port = from_net(tcp->src_port);
-
-        for (const auto& pb : ctx.tx_pkt_bufs) {
-            net::get_eth_hdr(pb)->dmac = eth->smac;
-            net::get_ip_hdr(pb)->d_addr = to_net(remote_ip);
-            net::get_tcp_hdr(pb)->dst_port = to_net(remote_port);
-        }
 
         tcb.ISR = from_net(tcp->seq_num);
         tcb.RCV_NXT = tcb.ISR + 1;
@@ -192,7 +181,7 @@ namespace tcp {
 
             net::get_ip_hdr(pb)->len = to_net<u16>(IP_HDR_SZ + TCP_HDR_SZ);
 
-            ctx.transmit(pb->dma_buf_addr, TCP_TOTAL_HDR_SZ, id);
+            ctx.transmit(pb, TCP_TOTAL_HDR_SZ);
         }
 
         reset_tcb();
@@ -339,9 +328,9 @@ namespace tcp {
             tcb.rto_deadline_cycles = io::cycle_timer::now() + io::cycle_timer::cycles_per_ms * RETRANSMISSION_TIMEOUT_MILLISECONDS;
 
         if constexpr (defer_doorbell)
-            ctx.transmit_init(pb->dma_buf_addr, TCP_TOTAL_HDR_SZ + payload_sz, pb->id);
+            ctx.transmit_init(pb, TCP_TOTAL_HDR_SZ + payload_sz);
         else
-            ctx.transmit(pb->dma_buf_addr, TCP_TOTAL_HDR_SZ + payload_sz, pb->id);
+            ctx.transmit(pb, TCP_TOTAL_HDR_SZ + payload_sz);
     }
 
 
@@ -368,7 +357,11 @@ namespace tcp {
     }
 
     u32 socket::generate_iss() {
-        return 0;
+        #ifdef TCP_TEST_HOOKS
+            return 0;
+        #else
+            return static_cast<u32>(io::cycle_timer::now());
+        #endif
     }
 
     void socket::refill_rx_ring() {
@@ -400,7 +393,7 @@ namespace tcp {
         tcb.need_ack = tcb.immediate_ack_req = false;
         pb->meta.tx_ref_cnt = 1;
 
-        ctx.transmit(pb->dma_buf_addr, TCP_TOTAL_HDR_SZ, id);
+        ctx.transmit(pb, TCP_TOTAL_HDR_SZ);
     }
 
     void socket::poll() {
@@ -500,13 +493,15 @@ namespace tcp {
 
         tcb.process(ctx.rx_free_stk);
 
-        if (tcb.immediate_ack_req || (tcb.need_ack && io::cycle_timer::now() >= tcb.d_ack_deadline_cycles))
+        const auto cur_time = io::cycle_timer::now();
+
+        if (tcb.immediate_ack_req || (tcb.need_ack && cur_time >= tcb.d_ack_deadline_cycles))
             send_pure_ack();
 
-        if (!tcb.tx_unacked.empty() && io::cycle_timer::now() >= tcb.rto_deadline_cycles)
+        if (!tcb.tx_unacked.empty() && cur_time >= tcb.rto_deadline_cycles)
             retransmit_head();
 
-        if (tcb.state == fsm::TIME_WAIT && io::cycle_timer::now() >= tcb.tw_deadline_cycles) [[unlikely]]
+        if (tcb.state == fsm::TIME_WAIT && cur_time >= tcb.tw_deadline_cycles) [[unlikely]]
             reset_tcb();
 
         refill_rx_ring();
@@ -526,7 +521,7 @@ namespace tcp {
         tcp->ack_num = to_net(tcb.RCV_NXT);
         ++(pb->meta.tx_ref_cnt);
 
-        ctx.transmit(pb->dma_buf_addr, TCP_TOTAL_HDR_SZ + pb->meta.payload.size(), pb->id);
+        ctx.transmit(pb, TCP_TOTAL_HDR_SZ + pb->meta.payload.size());
 
         tcb.rto_deadline_cycles = io::cycle_timer::now() + io::cycle_timer::cycles_per_ms * RETRANSMISSION_TIMEOUT_MILLISECONDS;
     }

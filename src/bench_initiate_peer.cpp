@@ -42,6 +42,7 @@ int main() {
         samples.push_back(static_cast<double>(t1 - t0) / io::cycle_timer::cycles_per_ms * 1000 * 1000);
 
         sock.abort();
+        io::cycle_timer::elapse(1);
         for (int j = 0; j < 20; ++j)
             sock.poll();
     }

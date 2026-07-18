@@ -1,8 +1,7 @@
-#include <algorithm>
-#include <cstring>
-#include <ranges>
 #include <net/if.h>
 #include <netinet/in.h>
+
+#include <etherfabric/checksum.h>
 
 #include "io/context.h"
 
@@ -19,10 +18,18 @@ namespace io {
             return rc;
         }
 
-        if (int rc = ef_vi_alloc_from_pd(&vi, dh, &pd, dh, -1, -1, -1, nullptr, -1, static_cast<enum ef_vi_flags>(0)); rc < 0) {
-            LOG_ERROR("ef_vi_alloc_from_pd: %s", std::strerror(-rc));
-            return rc;
+        if constexpr (USE_CTPIO) {
+            if (int rc = ef_vi_alloc_from_pd(&vi, dh, &pd, dh, -1, -1, -1, nullptr, -1, static_cast<enum ef_vi_flags>(EF_VI_TX_CTPIO)); rc < 0) {
+                LOG_WARN("CTPIO VI alloc failed: %s", std::strerror(-rc));
+                return rc;
+            }
+        } else {
+            if (int rc = ef_vi_alloc_from_pd(&vi, dh, &pd, dh, -1, -1, -1, nullptr, -1, static_cast<enum ef_vi_flags>(0)); rc < 0) {
+                LOG_ERROR("ef_vi_alloc_from_pd: %s", std::strerror(-rc));
+                return rc;
+            }
         }
+
 
         if (!mem_alloc())
             return -ENOMEM;
@@ -50,8 +57,17 @@ namespace io {
         ef_driver_close(dh);
     }
 
-    void context::transmit(ef_addr dma_buf_addr, int len, int id) {
-        ef_vi_transmit(&vi, dma_buf_addr, len, id);
+    void context::transmit(pkt_buf* pb, int len) {
+        if constexpr (USE_CTPIO) {
+            auto* ip = net::get_ip_hdr(pb);
+            auto* tcp = net::get_tcp_hdr(pb);
+            ip->csum = ef_ip_checksum(reinterpret_cast<iphdr*>(ip));
+            const iovec iov{pb->meta.payload.data(), pb->meta.payload.size()};
+            tcp->checksum = ef_tcp_checksum(reinterpret_cast<iphdr*>(ip), reinterpret_cast<tcphdr*>(tcp), &iov, 1);
+            ef_vi_transmit_ctpio(&vi, pb->dma_buf, len, CTPIO_THRESH);
+            ef_vi_transmit_ctpio_fallback(&vi, pb->dma_buf_addr, len, pb->id);
+        } else
+            ef_vi_transmit(&vi, pb->dma_buf_addr, len, pb->id);
     }
 
     int context::eventq_poll(ef_event* events, int batch_sz) {
@@ -66,8 +82,8 @@ namespace io {
         ef_vi_receive_push(&vi);
     }
 
-    void context::transmit_init(ef_addr dma_buf_addr, int len, int id) {
-        ef_vi_transmit_init(&vi, dma_buf_addr, len, id);
+    void context::transmit_init(pkt_buf* pb, int len) {
+        ef_vi_transmit_init(&vi, pb->dma_buf_addr, len, pb->id);
     }
 
     void context::transmit_push() {

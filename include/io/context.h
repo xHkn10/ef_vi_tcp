@@ -43,9 +43,9 @@ namespace io {
         int receive_space();
         int transmit_unbundle(ef_event& event, ef_request_id* ids);
 
-        void transmit(ef_addr dma_buf_addr, int len, int id);
+        void transmit(pkt_buf* pb, int len);
         void transmit_push();
-        void transmit_init(ef_addr dma_buf_addr, int len, int id);
+        void transmit_init(pkt_buf* pb, int len);
         void receive_init(ef_addr dma_buf_addr, int id);
         void receive_push();
         int eventq_poll(ef_event* events, int batch_sz);
