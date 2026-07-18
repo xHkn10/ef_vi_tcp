@@ -18,8 +18,9 @@ namespace {
     }
 }
 
+static_assert(!ENABLE_PASSIVE_OPEN);
+
 int main() {
-    static_assert(!ENABLE_PASSIVE_OPEN);
 
     if (if_nametoindex(io::INTERFACE_NAME) == 0) {
         LOG_ERROR("Failed to find interface %s", io::INTERFACE_NAME);
@@ -29,7 +30,7 @@ int main() {
     tcp::socket sock;
     sock.bind(enp1s0f0_ip, local_port, enp1s0f1_ip, remote_port, enp1s0f1_mac, enp1s0f0_mac);
 
-    constexpr int N = 10000;
+    constexpr int N = 2000;
     std::vector<u64> samples; samples.reserve(N);
 
     for (int i = 0; i < N; ++i) {

@@ -29,6 +29,8 @@ namespace {
     }
 }
 
+static_assert(!ENABLE_PASSIVE_OPEN);
+
 int main() {
     if (if_nametoindex(io::INTERFACE_NAME) == 0) {
         LOG_ERROR("Failed to find interface %s", io::INTERFACE_NAME);

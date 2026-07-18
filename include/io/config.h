@@ -19,16 +19,6 @@
     #define LOG_DEBUG(fmt, ...) ((void)0)
 #endif
 
-#ifdef EFVI_TCP_BENCH_PEER
-    inline constexpr bool ENABLE_PASSIVE_OPEN = true;
-#else
-    inline constexpr bool ENABLE_PASSIVE_OPEN = false;  // production: active open only
-#endif
-
-#ifndef EFVI_TCP_INTERFACE
-    #define EFVI_TCP_INTERFACE "enp1s0f0"
-#endif
-
 namespace io {
     constexpr int BUF_SZ = 2048;
     constexpr int HUGEPAGE_SZ = 2 * 1024 * 1024;
@@ -42,6 +32,6 @@ namespace io {
 
     constexpr char INTERFACE_NAME[] = EFVI_TCP_INTERFACE;
 
-    constexpr bool USE_CTPIO = false;
+    constexpr bool USE_CTPIO = true;
     constexpr int CTPIO_THRESH = 64;
 }
