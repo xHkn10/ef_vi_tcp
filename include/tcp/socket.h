@@ -19,6 +19,8 @@ namespace tcp {
 
         bool bind(u32 local_ip, u16 local_port, u32 remote_ip, u16 remote_port, std::array<u8, 6> dmac, std::array<u8, 6> smac);
         bool connect();
+        void listen();
+
 
         bool close();
         bool abort();
@@ -46,6 +48,8 @@ namespace tcp {
         static u32 generate_iss();
         void write_headers(io::pkt_buf*) const;
 
+        void accept_syn(io::pkt_buf*);
+
         template <bool defer_doorbell, bool stamp_ack_only>
         void stamp_and_send(io::pkt_buf*);
 
@@ -63,6 +67,7 @@ namespace tcp {
         u16 remote_port;
 
         bool is_bound;
+        bool is_listener;
 
 #ifdef TCP_TEST_HOOKS
     public:

@@ -19,6 +19,16 @@
     #define LOG_DEBUG(fmt, ...) ((void)0)
 #endif
 
+#ifdef EFVI_TCP_BENCH_PEER
+    inline constexpr bool ENABLE_PASSIVE_OPEN = true;
+#else
+    inline constexpr bool ENABLE_PASSIVE_OPEN = false;  // production: active open only
+#endif
+
+#ifndef EFVI_TCP_INTERFACE
+    #define EFVI_TCP_INTERFACE "enp1s0f0"
+#endif
+
 namespace io {
     constexpr int BUF_SZ = 2048;
     constexpr int HUGEPAGE_SZ = 2 * 1024 * 1024;
@@ -30,5 +40,6 @@ namespace io {
     static_assert(POLL_BATCH_SZ >= EF_VI_EVENT_POLL_MIN_EVS, "event poll batch size too small\n");
     constexpr int REFILL_BATCH_SZ = 8;
 
-    constexpr char INTERFACE_NAME[] = "enp1s0f0";
+
+    constexpr char INTERFACE_NAME[] = EFVI_TCP_INTERFACE;
 }

@@ -20,7 +20,7 @@ inline std::mt19937_64 gen{rd()};
 constexpr u32 LOCAL_IP{1}, REMOTE_IP{2};
 constexpr u16 LOCAL_PORT{1}, REMOTE_PORT{2};
 
-inline u8 dummy_mac[6]{};
+inline std::array<u8, 6> dummy_mac{};
 
 inline net::tcp_hdr* tcp_of(std::vector<std::byte>& packet) {
     return reinterpret_cast<net::tcp_hdr*>(packet.data() + ETH_HDR_SZ + IP_HDR_SZ);

@@ -35,6 +35,7 @@ namespace tcp {
         remote_ip = 0;
         remote_port = 0;
         is_bound = false;
+        is_listener = false;
 
         for (io::pkt_buf* pb : ctx.tx_pkt_bufs) {
             write_headers(pb);
@@ -50,26 +51,62 @@ namespace tcp {
 
         this->local_ip = local_ip;
         this->local_port = local_port;
-
-        for (auto& pb : ctx.tx_pkt_bufs) {
-            net::get_ip_hdr(pb)->s_addr = to_net(local_ip);
-            net::get_tcp_hdr(pb)->src_port = to_net(local_port);
-        }
-
         this->remote_ip = remote_ip;
         this->remote_port = remote_port;
 
         for (auto& pb : ctx.tx_pkt_bufs) {
-            net::eth_hdr* eth = net::get_eth_hdr(pb);
+            auto* eth = net::get_eth_hdr(pb);
+            auto* tcp = net::get_tcp_hdr(pb);
+            auto* ip = net::get_ip_hdr(pb);
             std::memcpy(eth->dmac, dmac.data(), 6);
             std::memcpy(eth->smac, smac.data(), 6);
-            net::get_ip_hdr(pb)->d_addr = to_net(remote_ip);
-            net::get_tcp_hdr(pb)->dst_port = to_net(remote_port);
+            ip->d_addr = to_net(remote_ip);
+            ip->s_addr = to_net(local_ip);
+            tcp->dst_port = to_net(remote_port);
+            tcp->src_port = to_net(local_port);
         }
 
         is_bound = true;
 
         return true;
+    }
+
+    void socket::listen() {
+        is_listener = true;
+        tcb.state = fsm::LISTEN;
+    }
+
+    void socket::accept_syn(io::pkt_buf* rx) {
+        if (ctx.tx_free_stk.empty()) [[unlikely]]
+            return;
+
+        const auto* eth = net::get_eth_hdr(rx);
+        const auto* ip = net::get_ip_hdr(rx);
+        const auto* tcp = net::get_tcp_hdr(rx);
+
+        remote_ip = from_net(ip->s_addr);
+        remote_port = from_net(tcp->src_port);
+
+        for (const auto& pb : ctx.tx_pkt_bufs) {
+            std::memcpy(net::get_eth_hdr(pb)->dmac, eth->smac, 6);
+            net::get_ip_hdr(pb)->d_addr = to_net(remote_ip);
+            net::get_tcp_hdr(pb)->dst_port = to_net(remote_port);
+        }
+
+        tcb.ISR = from_net(tcp->seq_num);
+        tcb.RCV_NXT = tcb.ISR + 1;
+        tcb.ISS = generate_iss();
+        tcb.SND_UNA = tcb.SND_NXT = tcb.ISS;
+        tcb.state = fsm::SYN_RECEIVED;
+
+        const int id = pop_back(ctx.tx_free_stk);
+        io::pkt_buf* pb = ctx.tx_pkt_bufs[id];
+        pb->set_payload_sz(0);
+
+        net::get_tcp_hdr(pb)->control = SYN_FLAG | ACK_FLAG;
+        net::get_ip_hdr(pb)->len = to_net<u16>(TCP_HDR_SZ + IP_HDR_SZ);
+
+        stamp_and_send<false, false>(pb);
     }
 
     // Connect is non-blocking, as it should be, since in case we lose the connection,
@@ -390,19 +427,40 @@ namespace tcp {
                     break;
                 }
                 case EF_EVENT_TYPE_RX: {
+                    int id = EF_EVENT_RX_RQ_ID(event);
+                    io::pkt_buf* pb = ctx.rx_pkt_bufs[id];
+                    const net::tcp_hdr* tcp = net::get_tcp_hdr(pb);
+
                     if (tcb.state == fsm::CLOSED) [[unlikely]] {
+                        ctx.rx_free_stk.push_back(id);
                         abort();
                         break;
                     }
 
-                    int id = EF_EVENT_RX_RQ_ID(event);
-                    io::pkt_buf* pb = ctx.rx_pkt_bufs[id];
-                    const net::tcp_hdr* tcp = net::get_tcp_hdr(pb);
+                    if constexpr (ENABLE_PASSIVE_OPEN) {
+                        if (tcb.state == fsm::LISTEN) [[unlikely]] {
+                            if (tcp->control & SYN_FLAG)
+                                accept_syn(pb);
+                            ctx.rx_free_stk.push_back(id);
+                            break;
+                        }
+                        if (tcb.state == fsm::SYN_RECEIVED) [[unlikely]] {
+                            if ((tcp->control & ACK_FLAG) && from_net(tcp->ack_num) == tcb.ISS + 1) {
+                                tcb.handle_ack(tcb.ISS + 1, ctx.tx_free_stk); // remove SYN|ACK from tx_unacked
+                                tcb.state = fsm::ESTABLISHED;
+                            }
+                            ctx.rx_free_stk.push_back(id);
+                            break;
+                        }
+                    }
 
                     // RST
                     if (tcp->control & RST_FLAG) [[unlikely]] {
                         ctx.rx_free_stk.push_back(id);
                         reset_tcb();
+                        if constexpr (ENABLE_PASSIVE_OPEN)
+                            if (is_listener)
+                                tcb.state = fsm::LISTEN;
                         break;
                     }
 
