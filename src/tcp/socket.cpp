@@ -117,7 +117,7 @@ namespace tcp {
         net::get_tcp_hdr(pb)->control = SYN_FLAG | ACK_FLAG;
         net::get_ip_hdr(pb)->len = to_net<u16>(TCP_HDR_SZ + IP_HDR_SZ);
 
-        stamp_and_send<false, false>(pb);
+        stamp_and_send<false>(pb);
     }
 
     // Connect is non-blocking, as it should be, since in case we lose the connection,
@@ -139,7 +139,7 @@ namespace tcp {
         net::get_tcp_hdr(pb)->control = SYN_FLAG;
         net::get_ip_hdr(pb)->len = to_net<u16>(TCP_HDR_SZ + IP_HDR_SZ);
 
-        stamp_and_send<false, false>(pb);
+        stamp_and_send<false>(pb);
 
         return true;
     }
@@ -158,7 +158,7 @@ namespace tcp {
 
         tcb.state = (tcb.state == fsm::ESTABLISHED) ? fsm::FIN_WAIT1 : fsm::LAST_ACK;
 
-        stamp_and_send<false, false>(pb);
+        stamp_and_send<false>(pb);
 
         return true;
     }
@@ -191,7 +191,7 @@ namespace tcp {
     bool socket::send(io::pkt_buf* pb) {
         if (tcb.state != fsm::ESTABLISHED || ctx.transmit_space() == 0)
             return false;
-        stamp_and_send<false, true>(pb);
+        stamp_and_send<true>(pb);
         return true;
     }
 
@@ -206,9 +206,8 @@ namespace tcp {
             return false;
 
         for (io::pkt_buf* seg : sgl.segments)
-            stamp_and_send<true, true>(seg);
+            stamp_and_send<true>(seg);
 
-        ctx.transmit_push();
         return true;
     }
 
@@ -226,12 +225,10 @@ namespace tcp {
             std::memcpy(pb->dma_buf + TCP_TOTAL_HDR_SZ, payload.data() + n_bytes_sent, chunk);
             pb->set_payload_sz(chunk);
 
-            stamp_and_send<true, true>(pb);
+            stamp_and_send<true>(pb);
 
             n_bytes_sent += chunk;
         }
-
-        ctx.transmit_push();
 
         return n_bytes_sent;
     }
@@ -302,7 +299,7 @@ namespace tcp {
         return bytes_to_consume - bytes_left;
     }
 
-    template <bool defer_doorbell, bool stamp_ack_only>
+    template <bool stamp_ack_only>
     void socket::stamp_and_send(io::pkt_buf* pb) {
         const int payload_sz = pb->meta.payload.size();
 
@@ -327,10 +324,7 @@ namespace tcp {
         if (tcb.tx_unacked.size() == 1)
             tcb.rto_deadline_cycles = io::cycle_timer::now() + io::cycle_timer::cycles_per_ms * RETRANSMISSION_TIMEOUT_MILLISECONDS;
 
-        if constexpr (defer_doorbell)
-            ctx.transmit_init(pb, TCP_TOTAL_HDR_SZ + payload_sz);
-        else
-            ctx.transmit(pb, TCP_TOTAL_HDR_SZ + payload_sz);
+        ctx.transmit(pb, TCP_TOTAL_HDR_SZ + payload_sz);
     }
 
 
@@ -357,11 +351,7 @@ namespace tcp {
     }
 
     u32 socket::generate_iss() {
-        #ifdef TCP_TEST_HOOKS
-            return 0;
-        #else
-            return static_cast<u32>(io::cycle_timer::now());
-        #endif
+        return 0;
     }
 
     void socket::refill_rx_ring() {
@@ -462,7 +452,7 @@ namespace tcp {
                         LOG_DEBUG("Received segment without ACK");
 
                     auto payload = net::get_tcp_payload(pb);
-                    if (payload.empty() && !(tcp->control & FIN_FLAG)) [[unlikely]]
+                    if (payload.empty() && !(tcp->control & FIN_FLAG))
                         ctx.rx_free_stk.push_back(id);
                     else {
                         pb->meta = {payload, nullptr, from_net(tcp->seq_num), 0};

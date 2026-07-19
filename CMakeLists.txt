@@ -96,6 +96,7 @@ add_executable(bench_listen_peer
 target_link_libraries(bench_listen_peer PRIVATE ${CIUL})
 target_include_directories(bench_listen_peer PRIVATE include ${ONLOAD_INCLUDE})
 target_compile_definitions(bench_listen_peer PRIVATE
+        TCP_TEST_HOOKS
         ENABLE_PASSIVE_OPEN=true
         EFVI_TCP_INTERFACE="enp1s0f1")
 # ----------------------------------------------------------------------------------------------

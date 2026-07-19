@@ -40,6 +40,7 @@ int main() {
     while (sock.is_established()) {
         sock.poll();
         if (auto sgl = sock.receive_available(); sgl.head) {
+            std::printf("%d bytes received\n", sgl.n_bytes);
             total += sgl.n_bytes;
             sock.consume(sgl, sgl.n_bytes);
             if (total >= 100 * 1024 * 1024) {

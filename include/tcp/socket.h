@@ -49,7 +49,7 @@ namespace tcp {
 
         void accept_syn(io::pkt_buf*);
 
-        template <bool defer_doorbell, bool stamp_ack_only>
+        template <bool stamp_ack_only>
         void stamp_and_send(io::pkt_buf*);
 
         void send_pure_ack();

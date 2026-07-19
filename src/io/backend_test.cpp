@@ -47,12 +47,6 @@ namespace io {
         test::g_tx_done.push_back(pb->id);
     }
 
-    void context::transmit_init(pkt_buf* pb, int len) {
-        transmit(pb, len);
-    }
-
-    void context::transmit_push() {}
-
     int context::transmit_space() {
         return N_TX_BUFS;
     }

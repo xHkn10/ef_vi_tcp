@@ -90,14 +90,6 @@ namespace io {
         ef_vi_receive_push(&vi);
     }
 
-    void context::transmit_init(pkt_buf* pb, int len) {
-        ef_vi_transmit_init(&vi, pb->dma_buf_addr, len, pb->id);
-    }
-
-    void context::transmit_push() {
-        ef_vi_transmit_push(&vi);
-    }
-
     int context::add_ip4_tcp_filter(u32 local_ip, u16 local_port) {
         ef_filter_spec spec;
         ef_filter_spec_init(&spec, EF_FILTER_FLAG_NONE);
