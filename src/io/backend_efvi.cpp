@@ -30,6 +30,14 @@ namespace io {
             }
         }
 
+        // SUPER IMPORTANT NOTE:
+        // Default ef_vi_receive_buffer_len(&vi) size is 1792, which is 2048 - 256,
+        // but we use only 64 bytes for pkt buf metadata, so we have to set this to 2048 - 64 = 1984,
+        // so that frames of size (1792, 1984] don't arrive with scatter gather
+
+        // std::printf("%d\n", ef_vi_receive_buffer_len(&vi));
+        ef_vi_receive_set_buffer_len(&vi, BUF_SZ - PKT_BUF_MD_SZ);
+        // std::printf("%d\n", ef_vi_receive_buffer_len(&vi));
 
         if (!mem_alloc())
             return -ENOMEM;
