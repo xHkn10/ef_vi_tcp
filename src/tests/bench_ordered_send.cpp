@@ -23,6 +23,8 @@ std::mt19937 gen(42);
 constexpr int N_BYTES = 100 * 1024 * 1024;
 constexpr auto MAXN_SEND = 10'000;
 
+static_assert(!ENABLE_PASSIVE_OPEN);
+
 int main() {
     if (if_nametoindex(io::INTERFACE_NAME) == 0) {
         LOG_ERROR("Failed to find interface %s", io::INTERFACE_NAME);
@@ -57,6 +59,7 @@ int main() {
                 bytes_span = bytes_span.subspan(actual_sent);
                 sock.poll();
             }
+            std::printf("%f complete\n", 1 - ((double)left / N_BYTES));
         }
         while (!sock.test_tcb().tx_unacked.empty())
             sock.poll();

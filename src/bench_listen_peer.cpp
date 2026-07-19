@@ -37,7 +37,7 @@ int main() {
     std::puts("Listen peer connected\n");
 
     u64 total = 0;
-    while (true) {
+    while (sock.is_established()) {
         sock.poll();
         if (auto sgl = sock.receive_available(); sgl.head) {
             total += sgl.n_bytes;
@@ -48,4 +48,7 @@ int main() {
             }
         }
     }
+
+    if (!sock.is_established())
+        std::printf("Sth bad happened\n");
 }

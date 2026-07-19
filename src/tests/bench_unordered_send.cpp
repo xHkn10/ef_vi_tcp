@@ -34,14 +34,14 @@ std::mt19937 shuffle_gen(1337);
 constexpr int N_BYTES = 100 * 1024 * 1024;
 constexpr auto MAX_SEND = 10'000;
 
-int send_unordered(tcp::socket& sock, std::span<const std::byte> payload) {
+static int send_unordered(tcp::socket& sock, std::span<const std::byte> payload) {
     auto& ctx = sock.test_ctx();
     auto& tcb = sock.test_tcb();
 
     if (!sock.is_established() || payload.empty()) [[unlikely]]
         return 0;
 
-    std::array<io::pkt_buf*, MAX_SEND / TCP_MAX_PAYLOAD_SZ> batch;
+    std::array<io::pkt_buf*, (MAX_SEND + TCP_MAX_PAYLOAD_SZ - 1) / TCP_MAX_PAYLOAD_SZ> batch{};
     int n_segs = 0;
     int staged = 0;
 
@@ -113,7 +113,7 @@ int main() {
             const auto amount = std::uniform_int_distribution{1, std::min(left, MAX_SEND)}(gen);
             std::span bytes_span = std::span{bytes}.first(amount);
             while (!bytes_span.empty()) {
-                const auto actual_sent = send_unordered(sock, bytes_span.first(amount));
+                const auto actual_sent = send_unordered(sock, bytes_span);
                 left -= actual_sent;
                 bytes_span = bytes_span.subspan(actual_sent);
                 sock.poll();
