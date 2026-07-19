@@ -120,7 +120,6 @@ int main() {
                 bytes_span = bytes_span.subspan(actual_sent);
                 sock.poll();
             }
-            std::printf("%f completed\n", 1 - ((double)left / N_BYTES));
         }
         while (!sock.test_tcb().tx_unacked.empty())
             sock.poll();

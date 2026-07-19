@@ -2,8 +2,6 @@
 
 #include "io/context.h"
 
-// TODO consider skipping rx_ooo_list ENTIRELY, by appending directly to ready_queue if received in order
-
 namespace tcp {
     class rx_ooo_list {
     public:
