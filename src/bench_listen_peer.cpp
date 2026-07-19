@@ -31,6 +31,11 @@ int main() {
     sock.bind(enp1s0f1_ip, local_port, enp1s0f0_ip, remote_port, enp1s0f0_mac, enp1s0f1_mac);
     sock.listen();
 
+    while (!sock.is_established())
+        sock.poll();
+
+    std::puts("Listen peer connected\n");
+
     u64 total = 0;
     while (true) {
         sock.poll();

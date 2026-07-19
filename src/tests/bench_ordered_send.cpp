@@ -20,6 +20,8 @@ namespace {
 }
 
 std::mt19937 gen(42);
+constexpr int N_BYTES = 100 * 1024 * 1024;
+constexpr auto MAXN_SEND = 10'000;
 
 int main() {
     if (if_nametoindex(io::INTERFACE_NAME) == 0) {
@@ -34,22 +36,20 @@ int main() {
     while (!sock.is_established())
         sock.poll();
 
-    constexpr int N_BYTES = 100 * 1024 * 1024;
-    constexpr auto max_send = 10'000;
+    std::puts("Ordered send peer connected\n");
 
     const std::vector<std::byte> bytes = [] {
-        auto ret = std::vector<std::byte>(max_send);
+        auto ret = std::vector<std::byte>(MAXN_SEND);
         for (auto& b : ret)
             b = static_cast<std::byte>(rand());
         return ret;
     }();
-    
 
     const auto t0 = io::cycle_timer::now();
     {
         auto left = N_BYTES;
         while (left) {
-            const auto amount = std::uniform_int_distribution{1, std::min(left, max_send)}(gen);
+            const auto amount = std::uniform_int_distribution{1, std::min(left, MAXN_SEND)}(gen);
             std::span bytes_span = std::span{bytes}.first(amount);
             while (!bytes_span.empty()) {
                 const auto actual_sent = sock.send(bytes_span);
