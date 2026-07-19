@@ -87,10 +87,6 @@ namespace tcp {
 
                     if (!rx_seg->meta.payload.empty()) {
                         append_ready(rx_seg);
-
-                        ready_bytes += static_cast<int>(rx_seg->meta.payload.size());
-                        RCV_NXT += rx_seg->meta.payload.size();
-
                         queue_ack();
                     }
 
@@ -155,6 +151,15 @@ namespace tcp {
             }
         }
 
+        bool accept_in_order(io::pkt_buf* rx_seg) {
+            if (!rx_out_of_order.empty() || rx_seg->meta.seq != RCV_NXT || (net::get_tcp_hdr(rx_seg)->control & FIN_FLAG)) [[unlikely]]
+                return false;
+
+            append_ready(rx_seg);
+            queue_ack();
+            return true;
+        }
+
     private:
         void append_ready(io::pkt_buf* rx_seg) {
             if (rx_ready_head == nullptr)
@@ -164,6 +169,9 @@ namespace tcp {
                 rx_ready_tail = rx_seg;
             }
             rx_ready_tail->meta.nxt = nullptr;
+
+            ready_bytes += static_cast<int>(rx_seg->meta.payload.size());
+            RCV_NXT += rx_seg->meta.payload.size();
         }
 
         void handle_fin() {

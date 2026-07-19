@@ -456,8 +456,9 @@ namespace tcp {
                         ctx.rx_free_stk.push_back(id);
                     else {
                         pb->meta = {payload, nullptr, from_net(tcp->seq_num), 0};
-                        if (!tcb.rx_out_of_order.insert(pb))
-                            ctx.rx_free_stk.push_back(id);
+                        if (!tcb.accept_in_order(pb))
+                            if (!tcb.rx_out_of_order.insert(pb))
+                                ctx.rx_free_stk.push_back(id);
                     }
                     break;
                 }

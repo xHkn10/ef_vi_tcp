@@ -98,6 +98,8 @@ int main() {
     while (!sock.is_established())
         sock.poll();
 
+    std::puts("Unordered send peer connected\n");
+
     const std::vector<std::byte> bytes = [] {
         auto ret = std::vector<std::byte>(MAX_SEND);
         for (auto& b : ret)
@@ -118,6 +120,7 @@ int main() {
                 bytes_span = bytes_span.subspan(actual_sent);
                 sock.poll();
             }
+            std::printf("%f completed\n", 1 - ((double)left / N_BYTES));
         }
         while (!sock.test_tcb().tx_unacked.empty())
             sock.poll();

@@ -10,7 +10,11 @@ constexpr int TCP_HDR_SZ = 20;
 constexpr int TCP_TOTAL_HDR_SZ = ETH_HDR_SZ + IP_HDR_SZ + TCP_HDR_SZ;
 
 constexpr int TCP_TOTAL_METADATA_SZ = TCP_TOTAL_HDR_SZ + PKT_BUF_MD_SZ;
-constexpr int TCP_MAX_PAYLOAD_SZ = io::BUF_SZ - TCP_TOTAL_METADATA_SZ - 64;
+
+// SUPER IMPORTANT NOTE:
+// Respect MTU
+
+constexpr int TCP_MAX_PAYLOAD_SZ = 1500 - 120;
 
 constexpr u32 SYN_FLAG = 0b00000010;
 constexpr u32 ACK_FLAG = 0b00010000;

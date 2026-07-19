@@ -21,7 +21,7 @@ namespace {
 
 std::mt19937 gen(42);
 constexpr int N_BYTES = 100 * 1024 * 1024;
-constexpr auto MAXN_SEND = 10'000;
+constexpr auto MAX_SEND = 10'000;
 
 static_assert(!ENABLE_PASSIVE_OPEN);
 
@@ -30,6 +30,8 @@ int main() {
         LOG_ERROR("Failed to find interface %s", io::INTERFACE_NAME);
         return 1;
     }
+
+    io::cycle_timer::elapse(5000);
 
     tcp::socket sock;
     sock.bind(enp1s0f0_ip, local_port, enp1s0f1_ip, remote_port, enp1s0f1_mac, enp1s0f0_mac);
@@ -41,7 +43,7 @@ int main() {
     std::puts("Ordered send peer connected\n");
 
     const std::vector<std::byte> bytes = [] {
-        auto ret = std::vector<std::byte>(MAXN_SEND);
+        auto ret = std::vector<std::byte>(MAX_SEND);
         for (auto& b : ret)
             b = static_cast<std::byte>(rand());
         return ret;
@@ -51,7 +53,7 @@ int main() {
     {
         auto left = N_BYTES;
         while (left) {
-            const auto amount = std::uniform_int_distribution{1, std::min(left, MAXN_SEND)}(gen);
+            const auto amount = std::uniform_int_distribution{1, std::min(left, MAX_SEND)}(gen);
             std::span bytes_span = std::span{bytes}.first(amount);
             while (!bytes_span.empty()) {
                 const auto actual_sent = sock.send(bytes_span);
@@ -59,7 +61,6 @@ int main() {
                 bytes_span = bytes_span.subspan(actual_sent);
                 sock.poll();
             }
-            std::printf("%f complete\n", 1 - ((double)left / N_BYTES));
         }
         while (!sock.test_tcb().tx_unacked.empty())
             sock.poll();
