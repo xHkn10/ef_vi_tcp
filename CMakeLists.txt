@@ -3,6 +3,9 @@ project(ef_vi_tcp)
 
 set(CMAKE_CXX_STANDARD 23)
 
+option(USE_CTPIO "Transmit via CTPIO instead of DMA descriptors" ON)
+add_compile_definitions(EFVI_TCP_USE_CTPIO=$<BOOL:${USE_CTPIO}>)
+
 add_compile_options(-fno-strict-aliasing)
 
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -g -march=native -DNDEBUG")

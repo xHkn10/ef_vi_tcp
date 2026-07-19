@@ -31,8 +31,6 @@ int main() {
         return 1;
     }
 
-    io::cycle_timer::elapse(5000);
-
     tcp::socket sock;
     sock.bind(enp1s0f0_ip, local_port, enp1s0f1_ip, remote_port, enp1s0f1_mac, enp1s0f0_mac);
     sock.connect();

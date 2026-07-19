@@ -32,6 +32,7 @@ namespace io {
 
     constexpr char INTERFACE_NAME[] = EFVI_TCP_INTERFACE;
 
-    constexpr bool USE_CTPIO = true;
+    constexpr bool USE_CTPIO = EFVI_TCP_USE_CTPIO;
+
     constexpr int CTPIO_THRESH = 64;
 }

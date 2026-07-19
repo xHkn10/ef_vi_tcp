@@ -101,10 +101,8 @@ namespace tcp {
                     immediate_ack_req = true;
                     rx_free_stk.push_back(rx_seg->id);
                     rx_out_of_order.pop_front();
-                } else {
-                    immediate_ack_req = true;
+                } else
                     break;
-                }
             }
         }
 

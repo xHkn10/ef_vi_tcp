@@ -31,24 +31,14 @@ int main() {
     sock.bind(enp1s0f1_ip, local_port, enp1s0f0_ip, remote_port, enp1s0f0_mac, enp1s0f1_mac);
     sock.listen();
 
-    while (!sock.is_established())
-        sock.poll();
+    while (true) {
+        while (!sock.is_established())
+            sock.poll();
 
-    std::puts("Listen peer connected\n");
-
-    u64 total = 0;
-    while (sock.is_established()) {
-        sock.poll();
-        if (auto sgl = sock.receive_available(); sgl.head) {
-            total += sgl.n_bytes;
-            sock.consume(sgl, sgl.n_bytes);
-            if (total >= 100 * 1024 * 1024) {
-                std::printf("received %lu bytes\n", static_cast<u64>(total));
-                total = 0;
-            }
+        while (sock.is_established()) {
+            sock.poll();
+            if (auto sgl = sock.receive_available(); sgl.head)
+                sock.consume(sgl, sgl.n_bytes);
         }
     }
-
-    if (!sock.is_established())
-        std::printf("Sth bad happened\n");
 }
