@@ -19,6 +19,7 @@ void test_wraparound();
 void test_partial_ack_received();
 void test_huge_send_recv_simultaneously();
 void test_tcp_time_wait_transition();
+void rx_ooo_insert_test();
 
 void test_soup_login();
 void test_soup_login_rej();
@@ -63,6 +64,7 @@ static auto run_tcp_tests = [] {
     test_partial_ack_received();
     test_huge_send_recv_simultaneously();
     test_tcp_time_wait_transition();
+    rx_ooo_insert_test();
 };
 
 static auto run_soup_tests = [] {

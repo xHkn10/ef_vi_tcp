@@ -42,19 +42,15 @@ namespace tcp {
                 return true;
             }
 
-            if (head->meta.seq == new_pb->meta.seq)
-                return false;
-
             auto* cur = head;
-            while (cur->meta.nxt && *cur < *new_pb)
+            while (cur->meta.nxt && *cur->meta.nxt < *new_pb)
                 cur = cur->meta.nxt;
 
-            if (cur->meta.nxt && cur->meta.nxt->meta.seq == new_pb->meta.seq)
-                return false;
+            if (cur->meta.seq == new_pb->meta.seq || (cur->meta.nxt && cur->meta.nxt->meta.seq == new_pb->meta.seq))
+                return false; // duplicate
 
             new_pb->meta.nxt = cur->meta.nxt;
             cur->meta.nxt = new_pb;
-
             return true;
         }
 

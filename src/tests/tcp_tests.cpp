@@ -470,3 +470,29 @@ void test_tcp_time_wait_transition() {
 
     resource_checks
 }
+
+void rx_ooo_insert_test() {
+    io::test::test_reset();
+    tcp::socket sock;
+    auto& bufs = sock.test_ctx().rx_pkt_bufs;
+    tcp::rx_ooo_list list;
+    auto mk = [&](int i, u32 seq) { bufs[i]->meta = {{}, nullptr, seq, 0}; return bufs[i]; };
+
+    CHECK(list.insert(mk(0, 10)));
+    CHECK(list.insert(mk(1, 20)));
+    CHECK(list.insert(mk(2, 30)));
+    CHECK(list.insert(mk(3, 25)));
+
+    CHECK(!list.insert(mk(4, 25)));
+    CHECK(!list.insert(mk(5, 20)));
+    CHECK(!list.insert(mk(6, 30)));
+
+    CHECK(list.insert(mk(7, 35)));
+
+    for (u32 e : {10u, 20u, 25u, 30u, 35u}) {
+        auto* p = list.pop_front();
+        CHECK(p && p->meta.seq == e);
+    }
+
+    CHECK(list.empty());
+}
