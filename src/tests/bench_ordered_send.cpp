@@ -1,5 +1,6 @@
 #include "tcp/socket.h"
 #include <random>
+#include <net/if.h>
 
 namespace {
     namespace {
@@ -30,6 +31,9 @@ int main() {
     sock.bind(enp1s0f0_ip, local_port, enp1s0f1_ip, remote_port, enp1s0f1_mac, enp1s0f0_mac);
     sock.connect();
 
+    while (!sock.is_established())
+        sock.poll();
+
     constexpr int N_BYTES = 100 * 1024 * 1024;
     constexpr auto max_send = 10'000;
 
@@ -39,15 +43,23 @@ int main() {
             b = static_cast<std::byte>(rand());
         return ret;
     }();
-
-    const std::span<std::byte> bytes_span = bytes;
+    
 
     const auto t0 = io::cycle_timer::now();
-    auto left = N_BYTES;
-    while (left) {
-        const auto amount = std::uniform_int_distribution{0, std::min(left, max_send)}(gen);
-        sock.send(bytes_span.first(amount));
-        left -= amount;
+    {
+        auto left = N_BYTES;
+        while (left) {
+            const auto amount = std::uniform_int_distribution{1, std::min(left, max_send)}(gen);
+            std::span bytes_span = std::span{bytes}.first(amount);
+            while (!bytes_span.empty()) {
+                const auto actual_sent = sock.send(bytes_span);
+                left -= actual_sent;
+                bytes_span = bytes_span.subspan(actual_sent);
+                sock.poll();
+            }
+        }
+        while (!sock.test_tcb().tx_unacked.empty())
+            sock.poll();
     }
     const auto t1 = io::cycle_timer::now();
 

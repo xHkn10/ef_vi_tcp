@@ -22,7 +22,6 @@ namespace {
 static_assert(ENABLE_PASSIVE_OPEN);
 
 int main() {
-
     if (if_nametoindex(io::INTERFACE_NAME) == 0) {
         LOG_ERROR("Failed to find interface %s", io::INTERFACE_NAME);
         return 1;
@@ -32,6 +31,16 @@ int main() {
     sock.bind(enp1s0f1_ip, local_port, enp1s0f0_ip, remote_port, enp1s0f0_mac, enp1s0f1_mac);
     sock.listen();
 
-    for (;;)
+    u64 total = 0;
+    while (true) {
         sock.poll();
+        if (auto sgl = sock.receive_available(); sgl.head) {
+            total += sgl.n_bytes;
+            sock.consume(sgl, sgl.n_bytes);
+            if (total >= 100 * 1024 * 1024) {
+                std::printf("received %lu bytes\n", static_cast<u64>(total));
+                total = 0;
+            }
+        }
+    }
 }
