@@ -46,6 +46,8 @@ namespace tcp {
         u32 RCV_NXT;
         u32 RCV_WND;
 
+        u16 snd_mss = TCP_MAX_PAYLOAD_SZ;
+
         u32 ISS;
         u32 ISR;
 

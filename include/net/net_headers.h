@@ -26,6 +26,15 @@ constexpr int IP_D_ADDR_OFFSET = 20;
 constexpr int TCP_SEQ_NUM_OFFSET = 32;
 constexpr int TCP_ACK_NUM_OFFSET = 36;
 
+constexpr u8 TCP_OPT_EOL = 0;
+constexpr u8 TCP_OPT_NOP = 1;
+constexpr u8 TCP_OPT_MSS = 2;
+
+constexpr u8 TCP_OPT_MSS_LEN = 4;
+
+constexpr u8 TCP_DEFAULT_DOFFSET_RESERVED = 0x50;
+constexpr u16 TCP_DEFAULT_MSS = 536;
+
 #ifdef TCP_TEST_HOOKS
     // so we don't wait forever in tests
     constexpr int RETRANSMISSION_TIMEOUT_MILLISECONDS = 1;
@@ -84,6 +93,10 @@ namespace net {
         // tcp options follow this, of size max 40 bytes
     } __attribute__((packed));
 
+    struct parsed_tcp_opts {
+        u16 mss;
+    };
+
     inline eth_hdr* get_eth_hdr(io::pkt_buf* pb) {
         return reinterpret_cast<eth_hdr*>(pb->dma_buf);
     }
@@ -114,5 +127,51 @@ namespace net {
         if (tcp_hdr_len < TCP_HDR_SZ || tcp_hdr_len > 60) [[unlikely]]
             return {};
         return {reinterpret_cast<std::byte*>(tcp) + TCP_HDR_SZ, tcp_options_len};
+    }
+
+    inline parsed_tcp_opts parse_tcp_options(std::span<const std::byte> opts) {
+        parsed_tcp_opts out{};
+        const auto total_opts_len = opts.size();
+
+        for (int i = 0; i < total_opts_len; ) {
+            const u8 kind = static_cast<u8>(opts[i]);
+            if (kind == TCP_OPT_EOL) break;
+            if (kind == TCP_OPT_NOP) { ++i; continue; }
+
+            if (i + 1 >= total_opts_len)
+                break;
+
+            const u8 opt_len = static_cast<u8>(opts[i + 1]);
+
+            if (opt_len < 2 || i + opt_len > total_opts_len)
+                break;
+
+            switch (kind) {
+                case TCP_OPT_MSS: {
+                    if (opt_len == TCP_OPT_MSS_LEN) {
+                        const auto mss = (static_cast<u32>(opts[i + 2]) << 8) | static_cast<u32>(opts[i + 3]);
+                        out.mss = mss;
+                    }
+                    break;
+                }
+                default: {
+                    LOG_DEBUG("Unknown TCP option, type: %d", kind);
+                    break;
+                }
+            }
+
+            i += opt_len;
+        }
+
+        return out;
+    }
+
+    inline int write_mss_option(io::pkt_buf* pb, u16 mss) {
+        std::byte* o = pb->dma_buf + TCP_TOTAL_HDR_SZ;
+        o[0] = std::byte{TCP_OPT_MSS};
+        o[1] = std::byte{TCP_OPT_MSS_LEN};
+        o[2] = static_cast<std::byte>(mss >> 8);
+        o[3] = static_cast<std::byte>(mss & 0xFF);
+        return TCP_OPT_MSS_LEN;
     }
 }

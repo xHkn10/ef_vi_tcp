@@ -78,7 +78,7 @@ namespace tcp {
                 to_net(remote_port),
                 to_net(tcb.ISS),
                 0,
-                0x50,
+                TCP_DEFAULT_DOFFSET_RESERVED,
                 0, // CWR, ECE, URG, ACK, PSH, RST, SYN, FIN; since this is a varying field, it should be always set explicitly
                 to_net<u16>(0xFFFF),
                 0,
@@ -102,9 +102,10 @@ namespace tcp {
         if (ctx.tx_free_stk.empty()) [[unlikely]]
             return;
 
-        const auto* tcp = net::get_tcp_hdr(rx);
+        const auto peer_opts = net::parse_tcp_options(net::get_tcp_options(rx));
+        set_snd_mss(peer_opts.mss);
 
-        tcb.ISR = from_net(tcp->seq_num);
+        tcb.ISR = from_net(net::get_tcp_hdr(rx)->seq_num);
         tcb.RCV_NXT = tcb.ISR + 1;
         tcb.ISS = generate_iss();
         tcb.SND_UNA = tcb.SND_NXT = tcb.ISS;
@@ -115,9 +116,10 @@ namespace tcp {
         pb->set_payload_sz(0);
 
         net::get_tcp_hdr(pb)->control = SYN_FLAG | ACK_FLAG;
-        net::get_ip_hdr(pb)->len = to_net<u16>(TCP_HDR_SZ + IP_HDR_SZ);
+        const auto opt_len = net::write_mss_option(pb, TCP_MAX_PAYLOAD_SZ);
+        net::get_ip_hdr(pb)->len = to_net<u16>(TCP_HDR_SZ + IP_HDR_SZ + opt_len);
 
-        stamp_and_send<false>(pb);
+        stamp_and_send<false>(pb, opt_len);
     }
 
     // Connect is non-blocking, as it should be, since in case we lose the connection,
@@ -136,10 +138,11 @@ namespace tcp {
 
         pb->set_payload_sz(0);
 
-        net::get_tcp_hdr(pb)->control = SYN_FLAG;
-        net::get_ip_hdr(pb)->len = to_net<u16>(TCP_HDR_SZ + IP_HDR_SZ);
+        const auto opt_len = net::write_mss_option(pb, TCP_MAX_PAYLOAD_SZ);
 
-        stamp_and_send<false>(pb);
+        net::get_tcp_hdr(pb)->control = SYN_FLAG;
+
+        stamp_and_send<false>(pb, opt_len);
 
         return true;
     }
@@ -158,7 +161,7 @@ namespace tcp {
 
         tcb.state = (tcb.state == fsm::ESTABLISHED) ? fsm::FIN_WAIT1 : fsm::LAST_ACK;
 
-        stamp_and_send<false>(pb);
+        stamp_and_send<false>(pb, 0);
 
         return true;
     }
@@ -174,12 +177,13 @@ namespace tcp {
             pb->meta.tx_ref_cnt = 1;
 
             auto* tcp = net::get_tcp_hdr(pb);
+            auto* ip = net::get_ip_hdr(pb);
 
             tcp->control = RST_FLAG;
             tcp->seq_num = to_net(tcb.SND_NXT);
             tcp->ack_num = to_net(tcb.RCV_NXT);
 
-            net::get_ip_hdr(pb)->len = to_net<u16>(IP_HDR_SZ + TCP_HDR_SZ);
+            ip->len = to_net<u16>(IP_HDR_SZ + TCP_HDR_SZ);
 
             ctx.transmit(pb, TCP_TOTAL_HDR_SZ);
         }
@@ -191,7 +195,7 @@ namespace tcp {
     bool socket::send(io::pkt_buf* pb) {
         if (tcb.state != fsm::ESTABLISHED || ctx.transmit_space() == 0)
             return false;
-        stamp_and_send<true>(pb);
+        stamp_and_send<true>(pb, 0);
         return true;
     }
 
@@ -206,7 +210,7 @@ namespace tcp {
             return false;
 
         for (io::pkt_buf* seg : sgl.segments)
-            stamp_and_send<true>(seg);
+            stamp_and_send<true>(seg, 0);
 
         return true;
     }
@@ -221,11 +225,11 @@ namespace tcp {
             const int id = pop_back(ctx.tx_free_stk);
             io::pkt_buf* pb = ctx.tx_pkt_bufs[id];
 
-            const int chunk = std::min(TCP_MAX_PAYLOAD_SZ, static_cast<int>(payload.size()) - n_bytes_sent);
+            const int chunk = std::min<int>(tcb.snd_mss, static_cast<int>(payload.size()) - n_bytes_sent);
             std::memcpy(pb->dma_buf + TCP_TOTAL_HDR_SZ, payload.data() + n_bytes_sent, chunk);
             pb->set_payload_sz(chunk);
 
-            stamp_and_send<true>(pb);
+            stamp_and_send<true>(pb,0);
 
             n_bytes_sent += chunk;
         }
@@ -262,10 +266,6 @@ namespace tcp {
         return n_bytes_read;
     }
 
-    io::pkt_buf* socket::receive_single() {
-        return tcb.pop_front();
-    }
-
     io::rx_sgl socket::receive_available() {
         return tcb.hand_out_ready();
     }
@@ -300,12 +300,15 @@ namespace tcp {
     }
 
     template <bool stamp_ack_only>
-    void socket::stamp_and_send(io::pkt_buf* pb) {
+    void socket::stamp_and_send(io::pkt_buf* pb, int opt_len) {
         const int payload_sz = pb->meta.payload.size();
+        const int tcp_hdr_len = TCP_HDR_SZ + opt_len;
 
-        net::get_ip_hdr(pb)->len = to_net<u16>(IP_HDR_SZ + TCP_HDR_SZ + payload_sz);
+        auto* tcp = net::get_tcp_hdr(pb);
+        auto* ip = net::get_ip_hdr(pb);
 
-        net::tcp_hdr* tcp = net::get_tcp_hdr(pb);
+        tcp->doffset_reserved = (tcp_hdr_len >> 2) << 4;
+        ip->len = to_net<u16>(IP_HDR_SZ + tcp_hdr_len + payload_sz);
 
         if constexpr (stamp_ack_only) {
             tcp->control = ACK_FLAG;
@@ -324,7 +327,7 @@ namespace tcp {
         if (tcb.tx_unacked.size() == 1)
             tcb.rto_deadline_cycles = io::cycle_timer::now() + io::cycle_timer::cycles_per_ms * RETRANSMISSION_TIMEOUT_MILLISECONDS;
 
-        ctx.transmit(pb, TCP_TOTAL_HDR_SZ + payload_sz);
+        ctx.transmit(pb, ETH_HDR_SZ + IP_HDR_SZ + tcp_hdr_len + payload_sz);
     }
 
 
@@ -340,11 +343,11 @@ namespace tcp {
     io::tx_sgl socket::get_tx_sgl(int n_bytes) {
         io::tx_sgl sgl{};
 
-        for (int left = n_bytes; left > 0 && !ctx.tx_free_stk.empty(); left -= TCP_MAX_PAYLOAD_SZ) {
+        for (int left = n_bytes; left > 0 && !ctx.tx_free_stk.empty(); left -= tcb.snd_mss) {
             const int id = pop_back(ctx.tx_free_stk);
             io::pkt_buf* pb = ctx.tx_pkt_bufs[id];
             sgl.segments.push_back(pb);
-            sgl.n_bytes += TCP_MAX_PAYLOAD_SZ;
+            sgl.n_bytes += tcb.snd_mss;
         }
 
         return sgl;
@@ -373,12 +376,15 @@ namespace tcp {
         const int id = pop_back(ctx.tx_free_stk);
         io::pkt_buf* pb = ctx.tx_pkt_bufs[id];
 
-        net::get_ip_hdr(pb)->len = to_net<u16>(IP_HDR_SZ + TCP_HDR_SZ);
-
         auto* tcp = net::get_tcp_hdr(pb);
+        auto* ip = net::get_ip_hdr(pb);
+
+        ip->len = to_net<u16>(IP_HDR_SZ + TCP_HDR_SZ);
+
         tcp->control = ACK_FLAG;
         tcp->seq_num = to_net(tcb.SND_NXT);
         tcp->ack_num = to_net(tcb.RCV_NXT);
+        tcp->doffset_reserved = (TCP_HDR_SZ >> 2) << 4;
 
         tcb.need_ack = tcb.immediate_ack_req = false;
         pb->meta.tx_ref_cnt = 1;
@@ -438,6 +444,8 @@ namespace tcp {
                     // 3 WHS
                     if (tcb.state == fsm::SYN_SENT) [[unlikely]] {
                         if ((tcp->control & (SYN_FLAG | ACK_FLAG)) == (SYN_FLAG | ACK_FLAG) && from_net(tcp->ack_num) == tcb.ISS + 1) {
+                            const auto peer_mss = net::parse_tcp_options(net::get_tcp_options(pb)).mss;
+                            set_snd_mss(peer_mss);
                             tcb.complete_handshake(from_net(tcp->seq_num), ctx.tx_free_stk);
                             send_pure_ack();
                         }
@@ -509,12 +517,12 @@ namespace tcp {
         if (ctx.transmit_space() == 0)
             return;
 
-        io::pkt_buf* pb = tcb.tx_unacked.peek_front();
-        net::tcp_hdr* tcp = net::get_tcp_hdr(pb);
+        auto* pb = tcb.tx_unacked.peek_front();
+        auto* tcp = net::get_tcp_hdr(pb);
         tcp->ack_num = to_net(tcb.RCV_NXT);
         ++(pb->meta.tx_ref_cnt);
 
-        ctx.transmit(pb, TCP_TOTAL_HDR_SZ + pb->meta.payload.size());
+        ctx.transmit(pb, ETH_HDR_SZ + from_net(net::get_ip_hdr(pb)->len));
 
         tcb.rto_deadline_cycles = io::cycle_timer::now() + io::cycle_timer::cycles_per_ms * RETRANSMISSION_TIMEOUT_MILLISECONDS;
     }
@@ -539,5 +547,10 @@ namespace tcp {
         }
 
         tcb = {}; // sets state to closed
+    }
+
+    void socket::set_snd_mss(u16 mss) {
+        auto peer_mss = mss ? mss : TCP_DEFAULT_MSS;
+        tcb.snd_mss = std::min<u16>(TCP_MAX_PAYLOAD_SZ, peer_mss);
     }
 }

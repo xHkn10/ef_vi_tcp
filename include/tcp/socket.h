@@ -27,7 +27,6 @@ namespace tcp {
 
         void poll();
 
-        io::pkt_buf* receive_single();
         [[nodiscard]] io::rx_sgl receive_available();
         int receive(std::span<std::byte>);
 
@@ -50,11 +49,13 @@ namespace tcp {
         void accept_syn(io::pkt_buf*);
 
         template <bool stamp_ack_only>
-        void stamp_and_send(io::pkt_buf*);
+        void stamp_and_send(io::pkt_buf* pb, int opt_len);
 
         void send_pure_ack();
 
         void retransmit_head();
+
+        void set_snd_mss(u16 mss);
 
         io::context ctx;
 
