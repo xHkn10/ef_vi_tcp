@@ -109,8 +109,10 @@ namespace net {
 
     inline std::span<std::byte> get_tcp_options(io::pkt_buf* pb) {
         auto* tcp = get_tcp_hdr(pb);
-        u32 tcp_header_len = (tcp->doffset_reserved >> 4) * 4;
-        u32 tcp_options_len = tcp_header_len - TCP_HDR_SZ;
-        return {pb->dma_buf + TCP_HDR_SZ, tcp_options_len};
+        u32 tcp_hdr_len = (tcp->doffset_reserved >> 4) * 4;
+        u32 tcp_options_len = tcp_hdr_len - TCP_HDR_SZ;
+        if (tcp_hdr_len < TCP_HDR_SZ || tcp_hdr_len > 60) [[unlikely]]
+            return {};
+        return {reinterpret_cast<std::byte*>(tcp) + TCP_HDR_SZ, tcp_options_len};
     }
 }
