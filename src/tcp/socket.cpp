@@ -181,6 +181,7 @@ namespace tcp {
             tcp->control = RST_FLAG;
             tcp->seq_num = to_net(tcb.SND_NXT);
             tcp->ack_num = to_net(tcb.RCV_NXT);
+            tcp->doffset_reserved = TCP_DEFAULT_DOFFSET_RESERVED;
 
             ip->len = to_net<u16>(IP_HDR_SZ + TCP_HDR_SZ);
 
@@ -442,8 +443,7 @@ namespace tcp {
                     // 3 WHS
                     if (tcb.state == fsm::SYN_SENT) [[unlikely]] {
                         if ((tcp->control & (SYN_FLAG | ACK_FLAG)) == (SYN_FLAG | ACK_FLAG) && from_net(tcp->ack_num) == tcb.ISS + 1) {
-                            const auto peer_mss = net::parse_tcp_options(net::get_tcp_options(pb)).mss;
-                            set_snd_mss(peer_mss);
+                            set_snd_mss(net::parse_tcp_options(net::get_tcp_options(pb)).mss);
                             tcb.complete_handshake(from_net(tcp->seq_num), ctx.tx_free_stk);
                             send_pure_ack();
                         }

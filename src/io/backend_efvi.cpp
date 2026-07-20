@@ -67,11 +67,15 @@ namespace io {
 
     void context::transmit(pkt_buf* pb, int len) {
         if constexpr (USE_CTPIO) {
-            auto* ip = net::get_ip_hdr(pb);
+            auto* ip  = net::get_ip_hdr(pb);
             auto* tcp = net::get_tcp_hdr(pb);
             ip->csum = ef_ip_checksum(reinterpret_cast<iphdr*>(ip));
-            const iovec iov{pb->meta.payload.data(), pb->meta.payload.size()};
+
+            const int tcp_hdr_len = (tcp->doffset_reserved >> 4) * 4;
+            const int payload_len = static_cast<int>(from_net(ip->len)) - IP_HDR_SZ - tcp_hdr_len;
+            const iovec iov{ reinterpret_cast<std::byte*>(tcp) + tcp_hdr_len, static_cast<size_t>(payload_len) };
             tcp->checksum = ef_tcp_checksum(reinterpret_cast<iphdr*>(ip), reinterpret_cast<tcphdr*>(tcp), &iov, 1);
+
             ef_vi_transmit_ctpio(&vi, pb->dma_buf, len, CTPIO_THRESH);
             ef_vi_transmit_ctpio_fallback(&vi, pb->dma_buf_addr, len, pb->id);
         } else

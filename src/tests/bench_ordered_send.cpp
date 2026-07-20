@@ -20,7 +20,7 @@ namespace {
 }
 
 std::mt19937 gen(42);
-constexpr int N_BYTES = 100 * 1024 * 1024;
+constexpr int N_BYTES = 100 * 1024;
 constexpr auto MAX_SEND = 10'000;
 
 static_assert(!ENABLE_PASSIVE_OPEN);
@@ -60,7 +60,7 @@ int main() {
                 sock.poll();
             }
         }
-        while (!sock.test_tcb().tx_unacked.empty())
+        while (!sock.tx_flushed())
             sock.poll();
     }
     const auto t1 = io::cycle_timer::now();

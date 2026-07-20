@@ -140,7 +140,6 @@ foreach(bench bench_ordered_send bench_unordered_send)
     target_link_libraries(${bench} PRIVATE ${CIUL})
     target_include_directories(${bench} PRIVATE include ${ONLOAD_INCLUDE})
     target_compile_definitions(${bench} PRIVATE
-            TCP_TEST_HOOKS
             ENABLE_PASSIVE_OPEN=false
             EFVI_TCP_INTERFACE="enp1s0f0")
 endforeach()
