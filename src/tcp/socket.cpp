@@ -117,7 +117,6 @@ namespace tcp {
 
         net::get_tcp_hdr(pb)->control = SYN_FLAG | ACK_FLAG;
         const auto opt_len = net::write_mss_option(pb, TCP_MAX_PAYLOAD_SZ);
-        net::get_ip_hdr(pb)->len = to_net<u16>(TCP_HDR_SZ + IP_HDR_SZ + opt_len);
 
         stamp_and_send<false>(pb, opt_len);
     }
@@ -410,7 +409,6 @@ namespace tcp {
 
                     if (tcb.state == fsm::CLOSED) [[unlikely]] {
                         ctx.rx_free_stk.push_back(id);
-                        abort();
                         break;
                     }
 

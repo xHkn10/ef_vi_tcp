@@ -123,9 +123,11 @@ namespace net {
     inline std::span<std::byte> get_tcp_options(io::pkt_buf* pb) {
         auto* tcp = get_tcp_hdr(pb);
         u32 tcp_hdr_len = (tcp->doffset_reserved >> 4) * 4;
-        u32 tcp_options_len = tcp_hdr_len - TCP_HDR_SZ;
+
         if (tcp_hdr_len < TCP_HDR_SZ || tcp_hdr_len > 60) [[unlikely]]
             return {};
+
+        u32 tcp_options_len = tcp_hdr_len - TCP_HDR_SZ;
         return {reinterpret_cast<std::byte*>(tcp) + TCP_HDR_SZ, tcp_options_len};
     }
 
@@ -148,10 +150,8 @@ namespace net {
 
             switch (kind) {
                 case TCP_OPT_MSS: {
-                    if (opt_len == TCP_OPT_MSS_LEN) {
-                        const auto mss = (static_cast<u32>(opts[i + 2]) << 8) | static_cast<u32>(opts[i + 3]);
-                        out.mss = mss;
-                    }
+                    if (opt_len == TCP_OPT_MSS_LEN)
+                        out.mss = (static_cast<u32>(opts[i + 2]) << 8) | static_cast<u32>(opts[i + 3]);
                     break;
                 }
                 default: {
