@@ -48,4 +48,13 @@ int main() {
     const double bench_ms = static_cast<double>(t1 - t0) / io::cycle_timer::cycles_per_ms;
 
     std::printf("Ordered byte send took %f ms\n", bench_ms);
+
+    const auto n_gigabit = (double)N_BYTES / (1024 * 1024 * 1024) * 8;
+    const auto total_sent = n_gigabit * (54 + TCP_MAX_PAYLOAD_SZ) / TCP_MAX_PAYLOAD_SZ;
+
+    const auto throughput = total_sent / (bench_ms / 1000);
+    const auto goodput = n_gigabit / (bench_ms / 1000);
+
+    std::printf("Throughput is %f Gbps\n", throughput);
+    std::printf("Goodput is %f Gbps\n", goodput);
 }

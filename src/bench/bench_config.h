@@ -5,7 +5,7 @@
 #include <random>
 #include <array>
 
-inline constexpr u64 N_BYTES = 100 * 1024 * 1024;
+inline constexpr u64 N_BYTES = 1024 * 1024 * 1024;
 inline constexpr u32 MAX_SEND = 10'000;
 
 // 00:0f:53:a3:ea:40
