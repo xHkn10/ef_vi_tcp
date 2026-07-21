@@ -170,7 +170,7 @@ namespace tcp {
             return false;
 
         if (!ctx.tx_free_stk.empty() && ctx.transmit_space() > 0) {
-            int id = pop_back(ctx.tx_free_stk);
+            const int id = pop_back(ctx.tx_free_stk);
             io::pkt_buf* pb = ctx.tx_pkt_bufs[id];
 
             pb->meta.tx_ref_cnt = 1;
@@ -225,7 +225,7 @@ namespace tcp {
             const int id = pop_back(ctx.tx_free_stk);
             io::pkt_buf* pb = ctx.tx_pkt_bufs[id];
 
-            const int chunk = std::min<int>(tcb.snd_mss, static_cast<int>(payload.size()) - n_bytes_sent);
+            const int chunk = std::min<int>(tcb.snd_mss, payload.size() - n_bytes_sent);
             std::memcpy(pb->dma_buf + TCP_TOTAL_HDR_SZ, payload.data() + n_bytes_sent, chunk);
             pb->set_payload_sz(chunk);
 
@@ -354,7 +354,12 @@ namespace tcp {
     }
 
     u32 socket::generate_iss() {
+#ifdef TCP_TEST_HOOKS
         return 0;
+#endif
+        const auto micro_second_clocks = io::cycle_timer::cycles_per_ms / 1000;
+        const u32 iss = io::cycle_timer::now() / (4 * micro_second_clocks);
+        return iss;
     }
 
     void socket::refill_rx_ring() {
@@ -548,7 +553,7 @@ namespace tcp {
     }
 
     void socket::set_snd_mss(u16 mss) {
-        auto peer_mss = mss ? mss : TCP_DEFAULT_MSS;
+        const auto peer_mss = mss ? mss : TCP_DEFAULT_MSS;
         tcb.snd_mss = std::min<u16>(TCP_MAX_PAYLOAD_SZ, peer_mss);
     }
 }
