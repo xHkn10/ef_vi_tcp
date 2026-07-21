@@ -313,6 +313,7 @@ namespace tcp {
         if constexpr (stamp_ack_only) {
             tcp->control = ACK_FLAG;
             tcb.need_ack = tcb.immediate_ack_req = false;
+            tcb.segs_since_ack = 0;
         }
 
         tcp->seq_num = to_net(tcb.SND_NXT);
@@ -392,6 +393,7 @@ namespace tcp {
         tcp->doffset_reserved = (TCP_HDR_SZ >> 2) << 4;
 
         tcb.need_ack = tcb.immediate_ack_req = false;
+        tcb.segs_since_ack = 0;
         pb->meta.tx_ref_cnt = 1;
 
         ctx.transmit(pb, TCP_TOTAL_HDR_SZ);

@@ -32,7 +32,7 @@ namespace tcp {
     struct TCB {
         io::pkt_buf* rx_ready_head;
         io::pkt_buf* rx_ready_tail;
-        int ready_bytes;
+        int ready_bytes = 0;
 
         rx_ooo_list rx_out_of_order;
         tx_unacked_queue tx_unacked;
@@ -57,6 +57,8 @@ namespace tcp {
         u64 d_ack_deadline_cycles;
         u64 rto_deadline_cycles;
         u64 tw_deadline_cycles;
+
+        int segs_since_ack = 0;
 
         io::rx_sgl hand_out_ready() {
             auto* tmp_head = rx_ready_head;
@@ -195,7 +197,9 @@ namespace tcp {
         }
 
         void queue_ack() {
-            if (!need_ack) {
+            if (++segs_since_ack >= 2)
+                immediate_ack_req = true;
+            else if (!need_ack) {
                 need_ack = true;
                 d_ack_deadline_cycles = io::cycle_timer::now() + io::cycle_timer::cycles_per_ms * DELAYED_ACK_TIMEOUT_MILLISECONDS;
             }
