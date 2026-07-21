@@ -12,7 +12,7 @@ int main() {
     }
 
     tcp::socket sock;
-    sock.bind(enp1s0f1_ip, enp1s0f0_port, enp1s0f0_ip, enp1s0f1_port, enp1s0f0_mac, enp1s0f1_mac);
+    sock.bind(enp1s0f1_ip, enp1s0f1_port, enp1s0f0_ip, enp1s0f0_port, enp1s0f0_mac, enp1s0f1_mac);
     sock.listen();
 
     while (true) {
