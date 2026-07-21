@@ -132,11 +132,9 @@ target_compile_definitions(tcp_tests PRIVATE
 # bench: bulk ordered/unordered send, initiator on enp1s0f0 (peer: bench_listen_peer)
 foreach(bench bench_ordered_send bench_unordered_send)
     add_executable(${bench}
-            src/tests/${bench}.cpp
+            src/bench/${bench}.cpp
             src/tcp/socket.cpp
             src/io/backend_efvi.cpp
-            src/bench/bench_config.h
-            src/bench/bench_config.h
     )
     target_link_libraries(${bench} PRIVATE ${CIUL})
     target_include_directories(${bench} PRIVATE include ${ONLOAD_INCLUDE})

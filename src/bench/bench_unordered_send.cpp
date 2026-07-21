@@ -20,7 +20,7 @@ static int send_unordered(tcp::socket& sock, std::span<const std::byte> payload)
         const int id = pop_back(ctx.tx_free_stk);
         io::pkt_buf* pb = ctx.tx_pkt_bufs[id];
 
-        const int chunk = std::min(TCP_MAX_PAYLOAD_SZ, static_cast<int>(payload.size()) - staged);
+        const int chunk = std::min<int>(TCP_MAX_PAYLOAD_SZ, payload.size() - staged);
         std::memcpy(pb->dma_buf + TCP_TOTAL_HDR_SZ, payload.data() + staged, chunk);
         pb->set_payload_sz(chunk);
 
@@ -83,7 +83,7 @@ int main() {
     {
         auto left = N_BYTES;
         while (left) {
-            const auto amount = std::uniform_int_distribution{1, std::min(left, MAX_SEND)}(gen);
+            const auto amount = std::uniform_int_distribution{1u, std::min<u32>(left, MAX_SEND)}(gen);
             std::span bytes_span = std::span{bytes}.first(amount);
             while (!bytes_span.empty()) {
                 const auto actual_sent = send_unordered(sock, bytes_span);
@@ -92,7 +92,7 @@ int main() {
                 sock.poll();
             }
         }
-        while (!sock.test_tcb().tx_unacked.empty())
+        while (!sock.tx_flushed())
             sock.poll();
     }
     const auto t1 = io::cycle_timer::now();
