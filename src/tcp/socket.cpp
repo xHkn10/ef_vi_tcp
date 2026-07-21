@@ -188,6 +188,8 @@ namespace tcp {
             ctx.transmit(pb, TCP_TOTAL_HDR_SZ);
         }
 
+        send_rst(to_net(tcb.SND_NXT), to_net(tcb.RCV_NXT));
+
         reset_tcb();
         return true;
     }
@@ -222,6 +224,8 @@ namespace tcp {
         int n_bytes_sent = 0;
 
         while (n_bytes_sent < payload.size() && !ctx.tx_free_stk.empty() && ctx.transmit_space() > 0) {
+            if (const u32 in_flight = tcb.SND_NXT - tcb.SND_UNA; in_flight >= tcb.SND_WND)
+                break;
             const int id = pop_back(ctx.tx_free_stk);
             io::pkt_buf* pb = ctx.tx_pkt_bufs[id];
 
@@ -417,6 +421,7 @@ namespace tcp {
 
                     if (tcb.state == fsm::CLOSED) [[unlikely]] {
                         ctx.rx_free_stk.push_back(id);
+                        send_rst(to_net(tcp->ack_num), 0);
                         break;
                     }
 
@@ -449,10 +454,15 @@ namespace tcp {
 
                     // 3 WHS
                     if (tcb.state == fsm::SYN_SENT) [[unlikely]] {
-                        if ((tcp->control & (SYN_FLAG | ACK_FLAG)) == (SYN_FLAG | ACK_FLAG) && from_net(tcp->ack_num) == tcb.ISS + 1) {
+                        if ((tcp->control & (SYN_FLAG | ACK_FLAG)) == (SYN_FLAG | ACK_FLAG) && from_net(tcp->ack_num) == tcb.ISS + 1) [[likely]] {
+                            tcb.SND_WND = from_net(tcp->window);
                             set_snd_mss(net::parse_tcp_options(net::get_tcp_options(pb)).mss);
                             tcb.complete_handshake(from_net(tcp->seq_num), ctx.tx_free_stk);
                             send_pure_ack();
+                        } else if (tcp->control & ACK_FLAG) [[unlikely]] {
+                            // Sometimes a stale 4 tuple just persists, and as a result netcat sends a segment with
+                            // ACK. This is called called a challenge ACK
+                            send_rst(to_net(tcp->ack_num), 0);
                         }
                         ctx.rx_free_stk.push_back(id);
                         break;
@@ -557,5 +567,23 @@ namespace tcp {
     void socket::set_snd_mss(u16 mss) {
         const auto peer_mss = mss ? mss : TCP_DEFAULT_MSS;
         tcb.snd_mss = std::min<u16>(TCP_MAX_PAYLOAD_SZ, peer_mss);
+    }
+
+    void socket::send_rst(u32 seq, u32 ack) {
+        if (ctx.tx_free_stk.empty() || ctx.transmit_space() == 0)
+            return;
+        const int id = pop_back(ctx.tx_free_stk);
+        io::pkt_buf* pb = ctx.tx_pkt_bufs[id];
+        auto* tcp = net::get_tcp_hdr(pb);
+        auto* ip  = net::get_ip_hdr(pb);
+
+        tcp->control = RST_FLAG;
+        tcp->seq_num = seq;
+        tcp->ack_num = ack;
+        tcp->doffset_reserved = TCP_DEFAULT_DOFFSET_RESERVED;
+        ip->len = to_net<u16>(IP_HDR_SZ + TCP_HDR_SZ);
+
+        pb->meta.tx_ref_cnt = 1;
+        ctx.transmit(pb, TCP_TOTAL_HDR_SZ);
     }
 }

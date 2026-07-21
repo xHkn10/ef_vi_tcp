@@ -41,6 +41,8 @@ namespace tcp {
         io::tx_sgl get_tx_sgl(int n_bytes);
 
     private:
+        void send_rst(u32 seq_num, u32 ack_num);
+
         void reset_tcb();
 
         void refill_rx_ring();

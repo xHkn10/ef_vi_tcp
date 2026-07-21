@@ -13,7 +13,7 @@ constexpr std::array<u8, 6> enp1s0f0_mac = {0x00, 0x0f, 0x53, 0xa3, 0xea, 0x40};
 constexpr u32 enp1s0f0_ip = (192u << 24) | (168u << 16) | (100u << 8) | (2u << 0);
 constexpr u16 enp1s0f0_port = 2069;
 
-//00:0f:53:a3:ea:41
+// 00:0f:53:a3:ea:41
 constexpr std::array<u8, 6> enp1s0f1_mac = {0x00, 0x0f, 0x53, 0xa3, 0xea, 0x41};
 // 192.168.100.1/24
 constexpr u32 enp1s0f1_ip = (192u << 24) | (168u << 16) | (100u << 8) | (1u << 0);
