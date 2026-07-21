@@ -142,6 +142,7 @@ foreach(bench bench_ordered_send bench_unordered_send)
             ENABLE_PASSIVE_OPEN=false
             EFVI_TCP_INTERFACE="enp1s0f0")
 endforeach()
+target_compile_definitions(bench_unordered_send PRIVATE TCP_BENCH_HOOKS)
 # ----------------------------------------------------------------------------------------------
 
 

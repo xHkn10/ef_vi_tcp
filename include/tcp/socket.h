@@ -70,7 +70,7 @@ namespace tcp {
         bool is_bound;
         bool is_listener;
 
-#ifdef TCP_TEST_HOOKS
+#if defined(TCP_TEST_HOOKS) || defined(TCP_BENCH_HOOKS)
     public:
         io::context& test_ctx() { return ctx; }
         TCB& test_tcb() { return tcb; }
