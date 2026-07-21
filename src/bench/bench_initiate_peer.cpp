@@ -1,22 +1,7 @@
 #include "tcp/socket.h"
+#include "bench_config.h"
+
 #include <net/if.h>
-
-namespace {
-    namespace {
-        // 00:0f:53:a3:ea:40
-        constexpr std::array<u8, 6> enp1s0f0_mac = {0x00, 0x0f, 0x53, 0xa3, 0xea, 0x40};
-        constexpr u32 enp1s0f0_ip = (192u << 24) | (168u << 16) | (100u << 8) | (2u << 0);
-        constexpr u16 local_port = 2069;
-    }
-
-    namespace {
-        //00:0f:53:a3:ea:41
-        constexpr std::array<u8, 6> enp1s0f1_mac = {0x00, 0x0f, 0x53, 0xa3, 0xea, 0x41};
-        // 192.168.100.1/24
-        constexpr u32 enp1s0f1_ip = (192u << 24) | (168u << 16) | (100u << 8) | (1u << 0);
-        constexpr u16 remote_port = 2070;
-    }
-}
 
 static_assert(!ENABLE_PASSIVE_OPEN);
 
@@ -27,7 +12,7 @@ int main() {
     }
 
     tcp::socket sock;
-    sock.bind(enp1s0f0_ip, local_port, enp1s0f1_ip, remote_port, enp1s0f1_mac, enp1s0f0_mac);
+    sock.bind(enp1s0f0_ip, enp1s0f0_port, enp1s0f1_ip, enp1s0f1_port, enp1s0f1_mac, enp1s0f0_mac);
 
     constexpr int N = 2000;
     std::vector<u64> samples; samples.reserve(N);

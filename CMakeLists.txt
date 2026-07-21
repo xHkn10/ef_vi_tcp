@@ -73,7 +73,7 @@ target_compile_definitions(ef_vi_tcp PRIVATE
 # ----------------------------------------------------------------------------------------------
 # bench: active initiator on enp1s0f0, active connect only
 add_executable(bench_initiate_peer
-        src/bench_initiate_peer.cpp
+        src/bench/bench_initiate_peer.cpp
         src/tcp/socket.cpp
         src/io/backend_efvi.cpp
 )
@@ -92,14 +92,13 @@ target_compile_definitions(bench_initiate_peer PRIVATE
 # ----------------------------------------------------------------------------------------------
 # bench: passive peer on enp1s0f1
 add_executable(bench_listen_peer
-        src/bench_listen_peer.cpp
+        src/bench/bench_listen_peer.cpp
         src/tcp/socket.cpp
         src/io/backend_efvi.cpp
 )
 target_link_libraries(bench_listen_peer PRIVATE ${CIUL})
 target_include_directories(bench_listen_peer PRIVATE include ${ONLOAD_INCLUDE})
 target_compile_definitions(bench_listen_peer PRIVATE
-        TCP_TEST_HOOKS
         ENABLE_PASSIVE_OPEN=true
         EFVI_TCP_INTERFACE="enp1s0f1")
 # ----------------------------------------------------------------------------------------------
@@ -136,6 +135,8 @@ foreach(bench bench_ordered_send bench_unordered_send)
             src/tests/${bench}.cpp
             src/tcp/socket.cpp
             src/io/backend_efvi.cpp
+            src/bench/bench_config.h
+            src/bench/bench_config.h
     )
     target_link_libraries(${bench} PRIVATE ${CIUL})
     target_include_directories(${bench} PRIVATE include ${ONLOAD_INCLUDE})
