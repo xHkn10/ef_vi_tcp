@@ -2,6 +2,8 @@
 
 #include "io/context.h"
 
+// TODO cap the size of the OOO list, so that it doesn't pin all RX buffer
+
 namespace tcp {
     class rx_ooo_list {
     public:

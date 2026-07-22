@@ -17,6 +17,9 @@ static int send_unordered(tcp::socket& sock, std::span<const std::byte> payload)
     int staged = 0;
 
     while (staged < payload.size() && n_segs < batch.size() && !ctx.tx_free_stk.empty() && ctx.transmit_space() > n_segs) {
+        if (const u32 in_flight = tcb.SND_NXT - tcb.SND_UNA; in_flight >= tcb.SND_WND)
+            break;
+
         const int id = pop_back(ctx.tx_free_stk);
         io::pkt_buf* pb = ctx.tx_pkt_bufs[id];
 
@@ -100,4 +103,13 @@ int main() {
     const double bench_ms = static_cast<double>(t1 - t0) / io::cycle_timer::cycles_per_ms;
 
     std::printf("Unordered byte send took %f ms\n", bench_ms);
+
+    constexpr auto n_gigabit = (double)N_BYTES / (1024 * 1024 * 1024) * 8;
+    constexpr auto total_sent = n_gigabit * (78 + TCP_MAX_PAYLOAD_SZ) / TCP_MAX_PAYLOAD_SZ;
+
+    const auto throughput = total_sent / (bench_ms / 1000);
+    const auto goodput = n_gigabit / (bench_ms / 1000);
+
+    std::printf("Throughput is %f Gbps\n", throughput);
+    std::printf("Goodput is %f Gbps\n", goodput);
 }

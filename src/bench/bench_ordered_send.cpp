@@ -31,7 +31,8 @@ int main() {
     {
         auto left = N_BYTES;
         while (left) {
-            const auto amount = std::uniform_int_distribution{1u, std::min<u32>(left, MAX_SEND)}(gen);
+            // const auto amount = std::uniform_int_distribution{1u, std::min<u32>(left, MAX_SEND)}(gen);
+            const auto amount = std::min<u32>(left, MAX_SEND);
             std::span bytes_span = std::span{bytes}.first(amount);
             while (!bytes_span.empty()) {
                 const auto actual_sent = sock.send(bytes_span);
@@ -49,8 +50,8 @@ int main() {
 
     std::printf("Ordered byte send took %f ms\n", bench_ms);
 
-    const auto n_gigabit = (double)N_BYTES / (1024 * 1024 * 1024) * 8;
-    const auto total_sent = n_gigabit * (54 + TCP_MAX_PAYLOAD_SZ) / TCP_MAX_PAYLOAD_SZ;
+    constexpr auto n_gigabit = (double)N_BYTES / (1024 * 1024 * 1024) * 8;
+    constexpr auto total_sent = n_gigabit * (78 + TCP_MAX_PAYLOAD_SZ) / TCP_MAX_PAYLOAD_SZ;
 
     const auto throughput = total_sent / (bench_ms / 1000);
     const auto goodput = n_gigabit / (bench_ms / 1000);
