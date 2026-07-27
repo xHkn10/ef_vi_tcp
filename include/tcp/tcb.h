@@ -123,6 +123,9 @@ namespace tcp {
 
             bool acked_any = false;
             while (io::pkt_buf* seg = tx_unacked.peek_front()) {
+                // TODO
+                // we currently do NOT retransmit if SND_UNA is less than seq_end
+                // but we probably should retransmit if SND_UNA is in range [seq_begin, seq_end)
                 u32 seq_end = seg->meta.seq + seg->meta.payload.size() + !!(net::get_tcp_hdr(seg)->control & (SYN_FLAG | FIN_FLAG));
                 if (seq_less(SND_UNA, seq_end))
                     break;

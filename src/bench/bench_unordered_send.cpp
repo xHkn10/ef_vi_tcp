@@ -31,6 +31,7 @@ static int send_unordered(tcp::socket& sock, std::span<const std::byte> payload)
 
         net::tcp_hdr* tcp = net::get_tcp_hdr(pb);
         tcp->control = ACK_FLAG;
+        tcp->doffset_reserved = TCP_DEFAULT_DOFFSET_RESERVED;
         tcp->seq_num = to_net(tcb.SND_NXT);
         tcp->ack_num = to_net(tcb.RCV_NXT);
 
