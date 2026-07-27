@@ -20,8 +20,10 @@ int main() {
     while (!sock.is_established())
         sock.poll();
 
+    std::puts("Listen peer connected\n");
+
     const auto t0 = io::cycle_timer::now();
-    while (sock.is_established()) {
+    while (true) {
         sock.poll();
         if (auto sgl = sock.receive_available(); sgl.head) {
             rcvd_bytes += sgl.n_bytes;
@@ -36,8 +38,8 @@ int main() {
 
     if (rcvd_bytes == N_BYTES)
         std::printf("Received the bytes in %f ms\n", bench_ms);
-    else if (rcvd_bytes > N_BYTES)
-        std::puts("?");
+    else
+        std::puts("?\n");
 
     sock.abort();
 }
