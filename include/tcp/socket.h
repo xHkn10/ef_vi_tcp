@@ -22,7 +22,6 @@ namespace tcp {
         bool connect();
         void listen();
 
-
         bool close();
         bool abort();
 

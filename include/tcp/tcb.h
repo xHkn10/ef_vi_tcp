@@ -126,6 +126,7 @@ namespace tcp {
                 // TODO
                 // we currently do NOT retransmit if SND_UNA is less than seq_end
                 // but we probably should retransmit if SND_UNA is in range [seq_begin, seq_end)
+                // i don't think we should implement this
                 u32 seq_end = seg->meta.seq + seg->meta.payload.size() + !!(net::get_tcp_hdr(seg)->control & (SYN_FLAG | FIN_FLAG));
                 if (seq_less(SND_UNA, seq_end))
                     break;

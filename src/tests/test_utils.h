@@ -66,6 +66,7 @@ struct fake_tcp_peer {
         tcp->seq_num = to_net(seq);
         tcp->ack_num = to_net(recv_next == 0 ? sock.test_tcb().SND_NXT : recv_next);
         tcp->control = flags;
+        tcp->window = to_net<u16>(std::numeric_limits<u16>::max()); // 65535
         tcp->doffset_reserved = 0x50;
 
         std::memcpy(frame.data() + TCP_TOTAL_HDR_SZ, payload.data(), payload.size());

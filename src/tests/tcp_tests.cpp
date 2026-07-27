@@ -344,6 +344,8 @@ void test_wraparound() {
     establish_tcp
 
     u32 start = UINT32_MAX - 10;
+    sock.test_tcb().SND_NXT = start;
+    sock.test_tcb().SND_UNA = start;
 
     sock.test_tcb().SND_NXT = start;
 
@@ -437,7 +439,11 @@ void test_huge_send_recv_simultaneously() {
         CHECK(sock.send(snd_span.subspan(sock_sent, sock_chunk)) == sock_chunk);
         sock_sent += sock_chunk;
 
-        tcp_peer.inject_data(sock, rcv_span.subspan(peer_sent, peer_chunk));
+        if (peer_chunk > 0)
+            tcp_peer.inject_data(sock, rcv_span.subspan(peer_sent, peer_chunk));
+        else
+            tcp_peer.inject(sock, ACK_FLAG);
+
         drain(sock);
 
         std::vector<char> rcv_buf_check(peer_chunk);

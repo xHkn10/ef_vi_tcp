@@ -168,28 +168,7 @@ namespace tcp {
     bool socket::abort() {
         if (tcb.state == fsm::CLOSED)
             return false;
-
-        if (!ctx.tx_free_stk.empty() && ctx.transmit_space() > 0) {
-            const int id = pop_back(ctx.tx_free_stk);
-            io::pkt_buf* pb = ctx.tx_pkt_bufs[id];
-
-            pb->meta.tx_ref_cnt = 1;
-
-            auto* tcp = net::get_tcp_hdr(pb);
-            auto* ip = net::get_ip_hdr(pb);
-
-            tcp->control = RST_FLAG;
-            tcp->seq_num = to_net(tcb.SND_NXT);
-            tcp->ack_num = to_net(tcb.RCV_NXT);
-            tcp->doffset_reserved = TCP_DEFAULT_DOFFSET_RESERVED;
-
-            ip->len = to_net<u16>(IP_HDR_SZ + TCP_HDR_SZ);
-
-            ctx.transmit(pb, TCP_TOTAL_HDR_SZ);
-        }
-
         send_rst(to_net(tcb.SND_NXT), to_net(tcb.RCV_NXT));
-
         reset_tcb();
         return true;
     }
