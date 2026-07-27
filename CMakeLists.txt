@@ -9,6 +9,7 @@ add_compile_definitions(EFVI_TCP_USE_CTPIO=$<BOOL:${USE_CTPIO}>)
 add_compile_options(-fno-strict-aliasing)
 
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -g -march=native -DNDEBUG")
+set(CMAKE_CXX_FLAGS_DEBUG "-g -DDEBUG")
 
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
 

@@ -113,3 +113,5 @@ int main() {
     std::printf("Throughput is %f Gbps\n", throughput);
     std::printf("Goodput is %f Gbps\n", goodput);
 }
+
+// CTPIO underrun bug
