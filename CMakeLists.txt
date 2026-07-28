@@ -3,9 +3,6 @@ project(ef_vi_tcp)
 
 set(CMAKE_CXX_STANDARD 23)
 
-option(USE_CTPIO "Transmit via CTPIO instead of DMA descriptors" ON)
-add_compile_definitions(EFVI_TCP_USE_CTPIO=$<BOOL:${USE_CTPIO}>)
-
 add_compile_options(-fno-strict-aliasing)
 
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -g -march=native -DNDEBUG")
@@ -49,64 +46,62 @@ message(STATUS "onload include: ${ONLOAD_INCLUDE}")
 message(STATUS "onload ciul:    ${CIUL}")
 
 
-
+# ---- build a _dma and a _ctpio variant of one ef_vi-backed executable ----
+function(add_efvi_variants name)
+    cmake_parse_arguments(A "" "INTERFACE;PASSIVE" "SOURCES;DEFS" ${ARGN})
+    foreach(variant dma ctpio)
+        if(variant STREQUAL "ctpio")
+            set(ctpio 1)
+        else()
+            set(ctpio 0)
+        endif()
+        set(tgt ${name}_${variant})
+        add_executable(${tgt} ${A_SOURCES})
+        target_link_libraries(${tgt} PRIVATE ${CIUL})
+        target_include_directories(${tgt} PRIVATE include ${ONLOAD_INCLUDE})
+        target_compile_definitions(${tgt} PRIVATE
+                EFVI_TCP_USE_CTPIO=${ctpio}
+                ENABLE_PASSIVE_OPEN=${A_PASSIVE}
+                EFVI_TCP_INTERFACE="${A_INTERFACE}"
+                ${A_DEFS})
+    endforeach()
+endfunction()
 
 
 # ----------------------------------------------------------------------------------------------
 # production
-add_executable(ef_vi_tcp
-        src/main.cpp
-        ${CORE_SRC}
-        src/io/backend_efvi.cpp
-)
-target_link_libraries(ef_vi_tcp PRIVATE ${CIUL})
-target_include_directories(ef_vi_tcp PRIVATE include ${ONLOAD_INCLUDE})
-target_compile_definitions(ef_vi_tcp PRIVATE
-        ENABLE_PASSIVE_OPEN=false
-        EFVI_TCP_INTERFACE="enp1s0f0")
+add_efvi_variants(ef_vi_tcp
+        SOURCES src/main.cpp ${CORE_SRC} src/io/backend_efvi.cpp
+        INTERFACE "enp1s0f0" PASSIVE false)
 # ----------------------------------------------------------------------------------------------
-
-
-
-
 
 
 # ----------------------------------------------------------------------------------------------
 # bench: active initiator on enp1s0f0, active connect only
-add_executable(bench_initiate_peer
-        src/bench/bench_initiate_peer.cpp
-        src/tcp/socket.cpp
-        src/io/backend_efvi.cpp
-)
-target_link_libraries(bench_initiate_peer PRIVATE ${CIUL})
-target_include_directories(bench_initiate_peer PRIVATE include ${ONLOAD_INCLUDE})
-target_compile_definitions(bench_initiate_peer PRIVATE
-        ENABLE_PASSIVE_OPEN=false
-        EFVI_TCP_INTERFACE="enp1s0f0")
+add_efvi_variants(bench_initiate_peer
+        SOURCES src/bench/bench_initiate_peer.cpp src/tcp/socket.cpp src/io/backend_efvi.cpp
+        INTERFACE "enp1s0f0" PASSIVE false)
 # ----------------------------------------------------------------------------------------------
-
-
-
-
 
 
 # ----------------------------------------------------------------------------------------------
 # bench: passive peer on enp1s0f1
-add_executable(bench_listen_peer
-        src/bench/bench_listen_peer.cpp
-        src/tcp/socket.cpp
-        src/io/backend_efvi.cpp
-)
-target_link_libraries(bench_listen_peer PRIVATE ${CIUL})
-target_include_directories(bench_listen_peer PRIVATE include ${ONLOAD_INCLUDE})
-target_compile_definitions(bench_listen_peer PRIVATE
-        TCP_BENCH_HOOKS
-        ENABLE_PASSIVE_OPEN=true
-        EFVI_TCP_INTERFACE="enp1s0f1")
+add_efvi_variants(bench_listen_peer
+        SOURCES src/bench/bench_listen_peer.cpp src/tcp/socket.cpp src/io/backend_efvi.cpp
+        INTERFACE "enp1s0f1" PASSIVE true  DEFS TCP_BENCH_HOOKS)
 # ----------------------------------------------------------------------------------------------
 
 
+# ----------------------------------------------------------------------------------------------
+# bench: bulk ordered/unordered send, initiator on enp1s0f0 (peer: bench_listen_peer)
+add_efvi_variants(bench_ordered_send
+        SOURCES src/bench/bench_ordered_send.cpp src/tcp/socket.cpp src/io/backend_efvi.cpp
+        INTERFACE "enp1s0f0" PASSIVE false)
 
+add_efvi_variants(bench_unordered_send
+        SOURCES src/bench/bench_unordered_send.cpp src/tcp/socket.cpp src/io/backend_efvi.cpp
+        INTERFACE "enp1s0f0" PASSIVE false DEFS TCP_BENCH_HOOKS)
+# ----------------------------------------------------------------------------------------------
 
 
 # ----------------------------------------------------------------------------------------------
@@ -122,30 +117,7 @@ add_executable(tcp_tests
 target_include_directories(tcp_tests PRIVATE include ${ONLOAD_INCLUDE})
 target_compile_definitions(tcp_tests PRIVATE
         TCP_TEST_HOOKS
+        EFVI_TCP_USE_CTPIO=0
         ENABLE_PASSIVE_OPEN=false
         EFVI_TCP_INTERFACE="test0")   # fake backend never opens it, macro just needs to exist
 # ----------------------------------------------------------------------------------------------
-
-
-
-
-
-# ----------------------------------------------------------------------------------------------
-# bench: bulk ordered/unordered send, initiator on enp1s0f0 (peer: bench_listen_peer)
-foreach(bench bench_ordered_send bench_unordered_send)
-    add_executable(${bench}
-            src/bench/${bench}.cpp
-            src/tcp/socket.cpp
-            src/io/backend_efvi.cpp
-    )
-    target_link_libraries(${bench} PRIVATE ${CIUL})
-    target_include_directories(${bench} PRIVATE include ${ONLOAD_INCLUDE})
-    target_compile_definitions(${bench} PRIVATE
-            ENABLE_PASSIVE_OPEN=false
-            EFVI_TCP_INTERFACE="enp1s0f0")
-endforeach()
-target_compile_definitions(bench_unordered_send PRIVATE TCP_BENCH_HOOKS)
-# ----------------------------------------------------------------------------------------------
-
-
-

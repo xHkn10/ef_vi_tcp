@@ -383,8 +383,6 @@ namespace tcp {
     }
 
     void socket::poll() {
-        static u32 poll_counter = 0;
-
         ef_event events[io::POLL_BATCH_SZ];
         const int n_events = ctx.eventq_poll(events, io::POLL_BATCH_SZ);
         for (auto& event : events | std::views::take(n_events)) {

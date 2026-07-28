@@ -71,6 +71,8 @@ namespace tcp {
         bool is_bound;
         bool is_listener;
 
+        u64 poll_counter = 0;
+
 #if defined(TCP_TEST_HOOKS) || defined(TCP_BENCH_HOOKS)
     public:
         io::context& test_ctx() { return ctx; }
