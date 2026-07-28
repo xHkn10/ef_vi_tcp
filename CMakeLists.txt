@@ -115,6 +115,7 @@ add_executable(tcp_tests
         src/tests/engine_tests.cpp
 )
 target_include_directories(tcp_tests PRIVATE include ${ONLOAD_INCLUDE})
+target_include_directories(tcp_tests PRIVATE include src/tests ${ONLOAD_INCLUDE})
 target_compile_definitions(tcp_tests PRIVATE
         TCP_TEST_HOOKS
         EFVI_TCP_USE_CTPIO=0
