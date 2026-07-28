@@ -22,24 +22,11 @@ int main() {
 
     std::puts("Listen peer connected\n");
 
-    const auto t0 = io::cycle_timer::now();
     while (true) {
         sock.poll();
         if (auto sgl = sock.receive_available(); sgl.head) {
             rcvd_bytes += sgl.n_bytes;
             sock.consume(sgl, sgl.n_bytes);
         }
-        if (rcvd_bytes >= N_BYTES)
-            break;
     }
-    const auto t1 = io::cycle_timer::now();
-
-    const double bench_ms = static_cast<double>(t1 - t0) / io::cycle_timer::cycles_per_ms;
-
-    if (rcvd_bytes == N_BYTES)
-        std::printf("Received the bytes in %f ms\n", bench_ms);
-    else
-        std::puts("?\n");
-
-    sock.abort();
 }

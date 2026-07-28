@@ -1,0 +1,154 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 3K of event 'cycles'
+# Event count (approx.): 3702982839
+#
+# Overhead  Source:Line                     
+# ........  ................................
+#
+    13.98%  ef10_event.c:911
+     6.66%  ef10_event.c:904
+     5.89%  socket.cpp:385
+     4.69%  backend_efvi.cpp:86
+     3.80%  socket.cpp:493
+     3.70%  ef10_event.c:976
+     3.68%  ef10_event.c:1007
+     3.50%  socket.cpp:505
+     2.70%  socket.cpp:427
+     2.60%  ef_vi.h:1548
+     2.45%  socket.cpp:200
+     2.44%  ranges:2226
+     2.30%  stl_vector.h:993
+     2.29%  socket.cpp:205
+     2.26%  ef10_event.c:920
+     2.25%  ranges:2245
+     2.20%  socket.cpp:498
+     2.09%  socket.cpp:352
+     2.02%  socket.cpp:495
+     1.96%  bench_ordered_send.cpp:39
+     1.96%  span:431
+     1.95%  socket.cpp:501
+     1.93%  socket.cpp:203
+     1.87%  rx_ooo_list.h:11
+     1.84%  ef_vi.h:1961
+     1.15%  __memmove_avx_unaligned_erms+420
+     0.99%  socket.cpp:308
+     0.99%  __memmove_avx_unaligned_erms+435
+     0.96%  __memmove_avx_unaligned_erms+4
+     0.80%  ef10_event.c:922
+     0.75%  ef_vi.h:1962
+     0.59%  ef10_vi.c:254
+     0.56%  ??:0
+     0.54%  __memmove_avx_unaligned_erms+448
+     0.43%  __memmove_avx_unaligned_erms+430
+     0.40%  ef10_vi.c:54
+     0.37%  __memmove_avx_unaligned_erms+443
+     0.32%  __memmove_avx_unaligned_erms+17
+     0.30%  __memmove_avx_unaligned_erms+13
+     0.29%  ef10_vi.c:128
+     0.27%  ef10_vi.c:255
+     0.27%  ef10_vi.c:145
+     0.27%  ef10_event.c:970
+     0.27%  socket.cpp:206
+     0.24%  ef10_event.c:928
+     0.24%  ia32intrin.h:114
+     0.24%  __memmove_avx_unaligned_erms+369
+     0.21%  __memmove_avx_unaligned_erms+439
+     0.19%  socket.cpp:306
+     0.19%  __memmove_avx_unaligned_erms+425
+     0.19%  bench_ordered_send.cpp:45
+     0.16%  __memmove_avx_unaligned_erms+453
+     0.16%  __memmove_avx_unaligned_erms+458
+     0.16%  ef10_vi.c:181
+     0.16%  socket.cpp:305
+     0.16%  span:425
+     0.16%  ef10_vi.c:153
+     0.13%  ef10_event.c:466
+     0.13%  tcb.h:130
+     0.13%  ef10_vi.c:243
+     0.11%  ef10_vi.c:265
+     0.11%  stl_algobase.h:238
+     0.11%  bit:114
+     0.11%  socket.cpp:399
+     0.08%  ef10_event.c:263
+     0.08%  __memmove_avx_unaligned_erms+462
+     0.08%  __memmove_avx_unaligned_erms+408
+     0.08%  __memmove_avx_unaligned_erms+394
+     0.08%  ef10_vi.c:182
+     0.08%  ef10_vi.c:223
+     0.08%  ef10_event.c:823
+     0.08%  ef10_vi.c:262
+     0.08%  ef10_event.c:102
+     0.08%  ef10_event.c:259
+     0.08%  bench_ordered_send.cpp:41
+     0.08%  __memmove_avx_unaligned_erms+472
+     0.08%  backend_efvi.cpp:90
+     0.05%  backend_efvi.cpp:82
+     0.05%  tcb.h:149
+     0.05%  ef_vi.h:1547
+     0.05%  socket.cpp:479
+     0.05%  tx_unacked_queue.h:11
+     0.05%  ef10_vi.c:260
+     0.05%  socket.cpp:211
+     0.05%  socket.cpp:437
+     0.05%  __memmove_avx_unaligned_erms+0
+     0.05%  tx_unacked_queue.h:20
+     0.05%  tx_unacked_queue.h:21
+     0.05%  ef10_vi.c:245
+     0.05%  pt_tx.c:54
+     0.05%  socket.cpp:390
+     0.05%  socket.cpp:298
+     0.05%  __memmove_avx_unaligned_erms+416
+     0.05%  stl_iterator.h:1077
+     0.05%  ef10_event.c:127
+     0.05%  socket.cpp:302
+     0.05%  tcb.h:85
+     0.05%  bench_ordered_send.cpp:37
+     0.03%  socket.cpp:354
+     0.03%  tx_unacked_queue.h:13
+     0.03%  ef10_vi.c:117
+     0.03%  ef10_vi.c:183
+     0.03%  net_headers.h:114
+     0.03%  ef10_vi.c:268
+     0.03%  ef10_event.c:264
+     0.03%  tx_unacked_queue.h:22
+     0.03%  __memmove_avx_unaligned_erms+331
+     0.03%  __memmove_avx_unaligned_erms+388
+     0.03%  socket.cpp:209
+     0.03%  types.h:16
+     0.03%  socket.cpp:212
+     0.03%  ef10_event.c:463
+     0.03%  ef10_event.c:458
+     0.03%  socket.cpp:478
+     0.03%  tcb.h:145
+     0.03%  ef10_event.c:122
+     0.03%  ef10_vi.c:263
+     0.03%  ef10_vi.c:248
+     0.03%  socket.cpp:311
+     0.03%  pt_tx.c:56
+     0.03%  tx_unacked_queue.h:15
+     0.03%  ef10_event.c:991
+     0.03%  pt_tx.c:55
+     0.03%  __memmove_avx_unaligned_erms+199
+     0.03%  socket.cpp:477
+     0.03%  ef10_vi.c:154
+     0.03%  ef10_vi.c:771
+     0.03%  pt_tx.c:57
+     0.03%  tcb.h:121
+     0.03%  ef10_vi.c:151
+     0.03%  ef10_vi.c:142
+     0.03%  ef10_event.c:113
+     0.03%  stl_vector.h:1288
+     0.03%  socket.cpp:303
+     0.02%  __random+64
+     0.01%  dl-lookup.c:604
+     0.00%  dl-lookup.c:951
+     0.00%  do-rel.h:128
+
+
+#
+# (Tip: To see call chains by final symbol taking CPU time (bottom up) use perf report -G)
+#

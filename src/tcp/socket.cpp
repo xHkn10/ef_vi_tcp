@@ -383,6 +383,8 @@ namespace tcp {
     }
 
     void socket::poll() {
+        static u32 poll_counter = 0;
+
         ef_event events[io::POLL_BATCH_SZ];
         const int n_events = ctx.eventq_poll(events, io::POLL_BATCH_SZ);
         for (auto& event : events | std::views::take(n_events)) {
@@ -488,7 +490,7 @@ namespace tcp {
 
         tcb.process(ctx.rx_free_stk);
 
-        const auto cur_time = io::cycle_timer::now();
+        const auto cur_time = poll_counter++ & 0xFF ? 0LL : io::cycle_timer::now();
 
         if (tcb.immediate_ack_req || (tcb.need_ack && cur_time >= tcb.d_ack_deadline_cycles))
             send_pure_ack();

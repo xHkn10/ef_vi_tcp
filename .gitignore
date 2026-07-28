@@ -4,3 +4,5 @@ cmake-build-release
 pcaps
 ctpio_vs_dma_3whs.txt
 bench_send.txt
+perf.data
+annotated.txt

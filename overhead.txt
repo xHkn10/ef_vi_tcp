@@ -1,0 +1,37 @@
+[shield_test@shield-test ef_vi_tcp]$ perf annotate -i perf.data --stdio > annotated.txt
+[shield_test@shield-test ef_vi_tcp]$ perf annotate -i perf.data
+[shield_test@shield-test ef_vi_tcp]$ perf report -i perf.data --sort=overhead,srcline --stdio
+Warning:
+Kernel address maps (/proc/{kallsyms,modules}) were restricted.
+
+Check /proc/sys/kernel/kptr_restrict before running 'perf record'.
+
+As no suitable kallsyms nor vmlinux was found, kernel samples
+can't be resolved.
+
+Samples in kernel modules can't be resolved as well.
+
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 3K of event 'cycles'
+# Event count (approx.): 3608701203
+#
+# Overhead  Source:Line
+# ........  ................................
+#
+    16.83%  ia32intrin.h:114
+    12.28%  ef10_event.c:911
+     7.62%  ef10_event.c:904
+     3.96%  backend_efvi.cpp:86
+     3.95%  ef10_event.c:976
+     3.70%  socket.cpp:385
+     3.24%  socket.cpp:503
+     3.13%  ef10_event.c:1007
+     3.04%  socket.cpp:425
+     2.17%  ef_vi.h:1548
+     2.03%  socket.cpp:205
+     2.02%  bench_ordered_send.cpp:39
+     1.98%  socket.cpp:200
