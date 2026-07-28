@@ -195,6 +195,7 @@ namespace soup {
                         LOG_ERROR("Expected soupbintcp len 1 for HEARTBEAT, received %u. Aborting...", soup_len);
                         goto fatal;
                     }
+                    LOG_DEBUG("Heartbeat received");
                     break;
                 }
                 case END_OF_SESSION: {

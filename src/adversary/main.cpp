@@ -1,19 +1,14 @@
+#include "engine/Engine.h"
 #include "tcp/socket.h"
 #include "adversary_config.h"
 
 #include <net/if.h>
 
+#include <memory>
+
 static_assert(!ENABLE_PASSIVE_OPEN);
 
-int main() {
-    if (if_nametoindex(io::INTERFACE_NAME) == 0) {
-        LOG_ERROR("Failed to find interface %s", io::INTERFACE_NAME);
-        return 1;
-    }
-
-    tcp::socket sock;
-    sock.bind(us_ip, us_port, them_ip, them_port, them_mac, us_mac);
-
+static void latency_test(auto& sock) {
     constexpr int N = 2000;
     std::vector<u64> samples; samples.reserve(N);
 
@@ -44,4 +39,33 @@ int main() {
         samples[999 * N / 1000],
         samples.back()
     );
+}
+
+
+int main() {
+    if (if_nametoindex(io::INTERFACE_NAME) == 0) {
+        LOG_ERROR("Failed to find interface %s", io::INTERFACE_NAME);
+        return 1;
+    }
+
+    auto engine = std::make_unique<engine::Engine<account_cnt>>();
+
+    auto& cfg = engine->accounts[0].cfg;
+
+    cfg = {
+        .smac = us_mac,
+        .dmac = them_mac,
+        .local_ip = us_ip,
+        .remote_ip = them_ip,
+        .local_port = us_port,
+        .remote_port = them_port,
+        .username = username,
+        .pass = pass
+    };
+
+    bool res = engine->accounts[0].sock.bind(cfg.local_ip, cfg.local_port, cfg.remote_ip, cfg.remote_port, cfg.dmac, cfg.smac);
+    if (!res)
+        return 1;
+
+    engine->run();
 }

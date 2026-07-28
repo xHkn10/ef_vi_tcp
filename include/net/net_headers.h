@@ -42,7 +42,7 @@ constexpr u16 TCP_DEFAULT_MSS = 536;
     constexpr int DELAYED_ACK_TIMEOUT_MILLISECONDS = 5;
     constexpr int TIME_WAIT_MILLISECONDS = 100;
 #else
-    constexpr int RETRANSMISSION_TIMEOUT_MILLISECONDS = 20;
+    constexpr int RETRANSMISSION_TIMEOUT_MILLISECONDS = 80;
     constexpr int CONNECT_TIMEOUT_MILLISECONDS = 1000;
     constexpr int DELAYED_ACK_TIMEOUT_MILLISECONDS = 40; // linux min d ack timeout is 40 ms
     constexpr int TIME_WAIT_MILLISECONDS = 60'000; // linux is also 60s

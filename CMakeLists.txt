@@ -108,7 +108,7 @@ add_efvi_variants(bench_unordered_send
 # adversary: hostile initiator on enp1s0f0, active connect to the BIST simulator.
 add_efvi_variants(adversary
         SOURCES src/adversary/main.cpp ${CORE_SRC} src/io/backend_efvi.cpp
-        INTERFACE "enp1s0f0" PASSIVE false DEFS TCP_BENCH_HOOKS)
+        INTERFACE "enp1s0f1" PASSIVE false DEFS TCP_BENCH_HOOKS)
 # ----------------------------------------------------------------------------------------------
 
 
