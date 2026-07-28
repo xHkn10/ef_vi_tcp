@@ -488,7 +488,11 @@ namespace tcp {
 
         tcb.process(ctx.rx_free_stk);
 
+#ifdef TCP_TEST_HOOKS
+        const auto cur_time = io::cycle_timer::now();
+#else
         const auto cur_time = poll_counter++ & 0xFF ? 0LL : io::cycle_timer::now();
+#endif
 
         if (tcb.immediate_ack_req || (tcb.need_ack && cur_time >= tcb.d_ack_deadline_cycles))
             send_pure_ack();
