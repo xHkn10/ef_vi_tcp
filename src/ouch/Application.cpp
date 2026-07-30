@@ -19,23 +19,26 @@ namespace ouch {
             return false;
         }
 
-        enter_order_msg order{
-            ENTER_ORDER_VAL,
-            {},
-            to_net(book_id),
-            side,
-            to_net(quantity),
-            static_cast<i32>(to_net(static_cast<u32>(price))),
-            tif,
-            open_close,
-            {}
-        };
+        enter_order_msg order{};
+        order.msg_type = ENTER_ORDER_VAL;
 
         std::memcpy(order.order_token, token.data(), token.size());
         std::memset(order.order_token + token.size(), ' ', sizeof(enter_order_msg::order_token) - token.size());
 
+        order.order_book_id = to_net(book_id);
+        order.side = side;
+        order.quantity = to_net(quantity);
+        order.price = static_cast<i32>(to_net(static_cast<u32>(price)));
+        order.time_in_force = tif;
+        order.open_close = open_close;
+
         std::memcpy(order.client_account, account.data(), account.size());
         std::memset(order.client_account + account.size(), ' ', sizeof(enter_order_msg::client_account) - account.size());
+
+        std::memset(order.customer_info, ' ', sizeof(enter_order_msg::customer_info));
+        std::memset(order.exchange_info, ' ', sizeof(enter_order_msg::exchange_info));
+        order.display_quantity = to_net(quantity);
+        // client_category, off_hours, reserved[] left 0
 
         return session->send_unsequenced(std::as_bytes(std::span{&order, 1}));
     }

@@ -90,6 +90,10 @@ namespace adv {
         std::memset(o.client_account, ' ', sizeof o.client_account);
         std::memcpy(o.client_account, account.data(), std::min(account.size(), sizeof o.client_account));
 
+        std::memset(o.customer_info, ' ', sizeof o.customer_info);
+        std::memset(o.exchange_info, ' ', sizeof o.exchange_info);
+        o.display_quantity = to_net(qty);
+
         std::array<std::byte, sizeof(o)> a{};
         std::memcpy(a.data(), &o, sizeof o);
         return a;

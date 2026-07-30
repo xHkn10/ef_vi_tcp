@@ -23,8 +23,14 @@ namespace ouch {
         u8 time_in_force;           // 0 day, 3 immediate or cancel, 4 fill or kill
         u8 open_close;              // 0 default, 1 open, 2 close/net
         char client_account[16];
+        char customer_info[15];
+        char exchange_info[32];
+        u64 display_quantity;
+        u8 client_category;
+        u8 off_hours;
+        char reserved[7];
     } __attribute__((packed));
-    static_assert(sizeof(enter_order_msg) == 50);
+    static_assert(sizeof(enter_order_msg) == 114);
 
     struct cancel_order_msg {
         char msg_type; // 'X'
@@ -49,8 +55,11 @@ namespace ouch {
         char exchange_info[32];     // only first 16 bytes used
         u64 pre_trade_quantity;
         u64 display_quantity;
+        u8 client_category;
+        u8 off_hours;
+        char reserved[3];
     } __attribute__((packed));
-    static_assert(sizeof(order_accepted_msg) == 130);
+    static_assert(sizeof(order_accepted_msg) == 135);
 
     // covers rejected orders AND rejected cancels
     struct order_rejected_msg {
