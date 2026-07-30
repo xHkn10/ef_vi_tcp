@@ -22,6 +22,7 @@ namespace adv {
 
     using ScenarioFn = void (*)(tcp::socket&, soup::Session&, ouch::Application&);
 
+    static constexpr u64 DRAIN_MS = 5'000;
 
     // --------------------------------- shared helpers ---------------------------------
     inline void drain(tcp::socket& sock, soup::Session& sess, u64 ms) {
@@ -30,8 +31,10 @@ namespace adv {
             sock.poll();
             sess.poll();
         }
+        if (sock.is_closed())
+            LOG_ERROR("Socket died for some reason");
     }
-    inline bool login_honest(tcp::socket& sock, soup::Session& sess, u64 timeout_ms = 3000) {
+    inline bool login_honest(tcp::socket& sock, soup::Session& sess, u64 timeout_ms = DRAIN_MS) {
         sess.login(username, pass);
         const u64 end = io::cycle_timer::now() + timeout_ms * io::cycle_timer::cycles_per_ms;
         while (io::cycle_timer::now() < end && !sock.is_closed()) {
@@ -63,7 +66,7 @@ namespace adv {
         const int chops[] = {1};
         LOG_INFO("split_length_prefix: sending order in segments [1, %zu]", frame.size() - 1);
         frag_send(sock, frame, chops);
-        drain(sock, sess, 3000);
+        drain(sock, sess, DRAIN_MS);
     }
 
     // send 1 byte per TCP segment
@@ -72,7 +75,7 @@ namespace adv {
         const auto frame = sample_order();
         LOG_INFO("byte_dribble: sending %zu-byte order 1 byte/segment", frame.size());
         dribble(sock, frame);
-        drain(sock, sess, 3000);
+        drain(sock, sess, DRAIN_MS);
     }
 
     // coalesce many order frames into a single TCP segment
@@ -86,7 +89,7 @@ namespace adv {
         }
         LOG_INFO("coalesce_burst: %d orders in one %zu-byte segment", N, buf.size());
         send_seg(sock, buf);
-        drain(sock, sess, 3000);
+        drain(sock, sess, DRAIN_MS);
     }
 
     // flood the server with client heartbeats
@@ -99,7 +102,7 @@ namespace adv {
             send_seg(sock, hb);
             if ((i & 0xFF) == 0) sock.poll();
         }
-        drain(sock, sess, 3000);
+        drain(sock, sess, DRAIN_MS);
     }
 
     inline void random_frag(tcp::socket& sock, soup::Session& sess, ouch::Application&) {
@@ -116,7 +119,7 @@ namespace adv {
                 sess.poll();
             }
         }
-        drain(sock, sess, 3000);
+        drain(sock, sess, DRAIN_MS);
     }
 
 

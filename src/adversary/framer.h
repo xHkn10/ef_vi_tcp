@@ -106,7 +106,7 @@ namespace adv {
     }
     // A single well-formed order frame, handy as the "clean" baseline to mangle.
     inline bytes sample_order() {
-        const auto o = build_enter_order("token", 70796, 'B', 100, 68100);
+        const auto o = build_enter_order("token", 70796, 'B', 100, 100'000);
         return build_unsequenced(o);
     }
     // Client Heartbeat ('R'), 3 bytes.

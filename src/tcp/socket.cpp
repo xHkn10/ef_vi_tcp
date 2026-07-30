@@ -428,6 +428,7 @@ namespace tcp {
                         if constexpr (ENABLE_PASSIVE_OPEN)
                             if (is_listener)
                                 tcb.state = fsm::LISTEN;
+                        LOG_DEBUG("RST received");
                         break;
                     }
 
