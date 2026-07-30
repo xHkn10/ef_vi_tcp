@@ -106,7 +106,7 @@ namespace ouch {
     }
 
     void Application::on_order_rejected(const order_rejected_msg& msg) {
-        LOG_INFO("Order rejected");
+        LOG_INFO("Order rejected with reject code %d", from_net(msg.reject_code));
     }
 
     void Application::on_order_executed(const order_executed_msg& msg) {

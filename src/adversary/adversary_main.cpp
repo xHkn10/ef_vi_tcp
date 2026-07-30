@@ -1,9 +1,10 @@
 // ---------------------------------------------------------------------------
-// Adversarial SoupBinTCP/OUCH peer
+// Adversarial peer
 // Connects to the BIST simulator and runs one hostile scenario,
 // chosen by argv[1] (default: DEFAULT_SCENARIO).
 //
-// sudo ip netns exec echons ./adversary_ctpio [scenario]
+// run the borsa istanbul emulator in one process,
+// sudo ip netns exec echons ./binary in [scenario] in another
 //
 // A single Account bundles the socket + Session + Application
 // we drive the TCP handshake here, then the scenario owns the SoupBin lifecycle (see scenarios.h).
