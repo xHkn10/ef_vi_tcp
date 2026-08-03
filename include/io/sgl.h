@@ -10,9 +10,4 @@ namespace io {
         pkt_buf* tail;
         int n_bytes;
     };
-
-    struct tx_sgl {
-        std::vector<pkt_buf*> segments;
-        int n_bytes;
-    };
 }

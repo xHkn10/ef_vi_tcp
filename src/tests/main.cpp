@@ -9,7 +9,6 @@ void test_active_close2();
 void test_active_abort();
 void test_inplace_send();
 void test_big_span_send();
-void test_tx_sgl_send();
 void test_receive();
 void test_ooo_receive();
 void test_rto();
@@ -54,7 +53,6 @@ static auto run_tcp_tests = [] {
     test_active_abort();
     test_inplace_send();
     test_big_span_send();
-    test_tx_sgl_send();
     test_receive();
     test_ooo_receive();
     test_rto();

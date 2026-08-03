@@ -180,22 +180,6 @@ namespace tcp {
         return true;
     }
 
-    bool socket::send(io::tx_sgl&& sgl) {
-        if (tcb.state != fsm::ESTABLISHED)
-            return false;
-        if (sgl.segments.empty())
-            return false;
-
-        // TODO should we partially send the segments?
-        if (ctx.transmit_space() < sgl.segments.size())
-            return false;
-
-        for (io::pkt_buf* seg : sgl.segments)
-            stamp_and_send<true>(seg, 0);
-
-        return true;
-    }
-
     int socket::send(std::span<const std::byte> payload) {
         if (tcb.state != fsm::ESTABLISHED || payload.empty()) [[unlikely]]
             return 0;
@@ -253,6 +237,12 @@ namespace tcp {
         return tcb.hand_out_ready();
     }
 
+    /**
+     *
+     * @param sgl The RX scatter-gather to consume
+     * @param bytes_to_consume how many bytes
+     * @return
+     */
     int socket::consume(const io::rx_sgl& sgl, const int bytes_to_consume) {
         int bytes_left = bytes_to_consume;
         io::pkt_buf* cur_rx = sgl.head;
@@ -282,6 +272,12 @@ namespace tcp {
         return bytes_to_consume - bytes_left;
     }
 
+    /**
+     * Helper to send frames. Stamps needed TCP and IP fields.
+     * @tparam stamp_ack_only true if only control flag is ACK
+     * @param pb pkt_buf
+     * @param opt_len option size
+     */
     template <bool stamp_ack_only>
     void socket::stamp_and_send(io::pkt_buf* pb, int opt_len) {
         const int payload_sz = pb->meta.payload.size();
@@ -314,7 +310,11 @@ namespace tcp {
         ctx.transmit(pb, ETH_HDR_SZ + IP_HDR_SZ + tcp_hdr_len + payload_sz);
     }
 
-
+    /**
+     * Get 1 TX buffer, to enable 0-copy. [UNSAFE] You will override the next pkt_buf's metadata if you write more than available buffer size.
+     * TODO write a helper method to write in a 0-copy way instead of handing a raw pkt_buf tbh. This is unsafe.
+     * @return 1 TX buffer to write to.
+     */
     io::pkt_buf* socket::get_tx_buf() {
         if (ctx.tx_free_stk.empty())
             return nullptr;
@@ -324,19 +324,11 @@ namespace tcp {
         return pb;
     }
 
-    io::tx_sgl socket::get_tx_sgl(int n_bytes) {
-        io::tx_sgl sgl{};
-
-        for (int left = n_bytes; left > 0 && !ctx.tx_free_stk.empty(); left -= tcb.snd_mss) {
-            const int id = pop_back(ctx.tx_free_stk);
-            io::pkt_buf* pb = ctx.tx_pkt_bufs[id];
-            sgl.segments.push_back(pb);
-            sgl.n_bytes += tcb.snd_mss;
-        }
-
-        return sgl;
-    }
-
+    /**
+     * Generate ISS using a monotonic clock. Increases by 1 in every 4 microseconds and wraps around in 4 hours.
+     * TODO add a randomized value seeded by the TCP 4-tuple.
+     * @return ISS
+     */
     u32 socket::generate_iss() {
 #ifdef TCP_TEST_HOOKS
         return 0;
@@ -346,6 +338,9 @@ namespace tcp {
         return iss;
     }
 
+    /**
+     * Hand RX buffers back to the NIC.
+     */
     void socket::refill_rx_ring() {
         int cnt = std::min<int>(ctx.receive_space(), ctx.rx_free_stk.size());
         cnt &= ~(io::REFILL_BATCH_SZ - 1);
@@ -358,6 +353,9 @@ namespace tcp {
         ctx.receive_push();
     }
 
+    /**
+     * Send acknowledgement, filling with fields from TCB.
+     */
     void socket::send_pure_ack() {
         if (ctx.tx_free_stk.empty() || ctx.transmit_space() == 0)
             return; // best effort
@@ -382,6 +380,9 @@ namespace tcp {
         ctx.transmit(pb, TCP_TOTAL_HDR_SZ);
     }
 
+    /**
+     * Hot loop of the TCP socket. Must be called explicitly frequently, otherwise NIC will start to drop the frames.
+     */
     void socket::poll() {
         ef_event events[io::POLL_BATCH_SZ];
         const int n_events = ctx.eventq_poll(events, io::POLL_BATCH_SZ);
@@ -441,7 +442,8 @@ namespace tcp {
                             send_pure_ack();
                         } else if (tcp->control & ACK_FLAG) [[unlikely]] {
                             // Sometimes a stale 4 tuple just persists, and as a result netcat sends a segment with
-                            // ACK. This is called called a challenge ACK
+                            // ACK. This is called called a challenge ACK, which is sent if received a SYN when in a
+                            // synchronized state.
                             send_rst(to_net(tcp->ack_num), 0);
                         }
                         ctx.rx_free_stk.push_back(id);
@@ -548,11 +550,20 @@ namespace tcp {
         tcb = {}; // sets state to closed
     }
 
+    /**
+     * @param mss Received MSS from remote peer
+     */
     void socket::set_snd_mss(u16 mss) {
         const auto peer_mss = mss ? mss : TCP_DEFAULT_MSS;
         tcb.snd_mss = std::min<u16>(TCP_MAX_PAYLOAD_SZ, peer_mss);
     }
 
+
+    /**
+     * Send an RST unconditionally.
+     * @param seq TCP sequence number of RST
+     * @param ack What sequence number to ACK. Needed because we cannot always read RCV_NXT to write ACK field (challenge ACK, received message while in closed state).
+     */
     void socket::send_rst(u32 seq, u32 ack) {
         if (ctx.tx_free_stk.empty() || ctx.transmit_space() == 0)
             return;

@@ -33,11 +33,9 @@ namespace tcp {
         int consume(const io::rx_sgl&, int bytes_to_consume);
 
         bool send(io::pkt_buf*);
-        bool send(io::tx_sgl&&);
         int send(std::span<const std::byte> payload);
 
         io::pkt_buf* get_tx_buf();
-        io::tx_sgl get_tx_sgl(int n_bytes);
 
     private:
         void send_rst(u32 seq_num, u32 ack_num);
