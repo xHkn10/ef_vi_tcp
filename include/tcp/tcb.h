@@ -3,7 +3,7 @@
 #include "io/cycle_timer.h"
 #include "net/net_headers.h"
 #include "rx_ooo_list.h"
-#include "io/sgl.h"
+#include "io/rx_sgl.h"
 #include "tx_unacked_queue.h"
 #include "types.h"
 

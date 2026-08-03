@@ -180,6 +180,11 @@ namespace tcp {
         return true;
     }
 
+    /**
+     * Send bytes in a copying manner.
+     * @param payload Payload span to send
+     * @return How many bytes actually sent
+     */
     int socket::send(std::span<const std::byte> payload) {
         if (tcb.state != fsm::ESTABLISHED || payload.empty()) [[unlikely]]
             return 0;
@@ -204,6 +209,11 @@ namespace tcp {
         return n_bytes_sent;
     }
 
+    /**
+     * Read n bytes in a copying manner.
+     * @param spn how many bytes to read maximum
+     * @return how many bytes actually read
+     */
     int socket::receive(std::span<std::byte> spn) {
         auto [head, tail, n_bytes] = tcb.hand_out_ready();
         io::pkt_buf* cur_rx = head;
