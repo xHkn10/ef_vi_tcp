@@ -520,6 +520,10 @@ namespace tcp {
     }
 
     // caller should check if tcb.tx_unacked is empty before calling
+    /**
+     * Helper to retransmit. Calls in every poll conditionally.
+     * Only retransmits the head of the retransmission queue. Retransmitting whole queue is another option.
+     */
     void socket::retransmit_head() {
         // best effort, retry in next poll
         // Note: We are NOT strictly retransmitting from SND_UNA when we get a partial ACK,
