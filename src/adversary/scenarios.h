@@ -78,6 +78,16 @@ namespace adv {
         drain(sock, sess, DRAIN_MS);
     }
 
+    // send only soupbintcp len
+    inline void send_only_soup_len(tcp::socket& sock, soup::Session& sess, ouch::Application&) {
+        if (!login_honest(sock, sess)) { LOG_ERROR("login failed"); return; }
+        const auto frame = sample_order();
+        LOG_INFO("send_only_soup_len: send 2 bytes soupbintcp length and nothing else");
+        bytes buf = {(std::byte)0xA, (std::byte)0xB};
+        send_seg(sock, buf);
+        drain(sock, sess, DRAIN_MS);
+    }
+
     // coalesce many order frames into a single TCP segment
     inline void coalesce_burst(tcp::socket& sock, soup::Session& sess, ouch::Application&) {
         if (!login_honest(sock, sess)) { LOG_ERROR("login failed"); return; }
@@ -140,6 +150,7 @@ namespace adv {
         {.name = "coalesce_burst",      .fn = coalesce_burst,      .desc = "many order frames coalesced into one segment"},
         {.name = "heartbeat_flood",     .fn = heartbeat_flood,     .desc = "flood the server with client heartbeats"},
         {.name = "random_frag",         .fn = random_frag,         .desc = "orders fragmented at random boundaries"},
+        {.name = "send_only_soup_len",  .fn = send_only_soup_len,  .desc = "sends only soupbintcp length and nothing else"}
     };
 
     inline const Scenario* find_scenario(std::string_view name) {
