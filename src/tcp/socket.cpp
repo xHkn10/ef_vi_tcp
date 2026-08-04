@@ -38,6 +38,16 @@ namespace tcp {
         is_listener = false;
     }
 
+    /**
+     * Set IP filter to kernel-bypass and write the fields to all pkt_buf's.
+     * @param local_ip
+     * @param local_port
+     * @param remote_ip
+     * @param remote_port
+     * @param dmac
+     * @param smac
+     * @return true if IP filter is set
+     */
     bool socket::bind(u32 local_ip, u16 local_port, u32 remote_ip, u16 remote_port, std::array<u8, 6> dmac, std::array<u8, 6> smac) {
         if (int rc = ctx.add_ip4_tcp_filter(local_ip, local_port); rc < 0) {
             LOG_ERROR("add_ip4_tcp_filter: %s", strerror(-rc));
@@ -243,6 +253,10 @@ namespace tcp {
         return n_bytes_read;
     }
 
+    /**
+     * Receive ALL available bytes in a scatter-gather list, in a 0-copy manner.
+     * @return RX scatter-gather
+     */
     io::rx_sgl socket::receive_available() {
         return tcb.hand_out_ready();
     }
@@ -519,10 +533,11 @@ namespace tcp {
         refill_rx_ring();
     }
 
-    // caller should check if tcb.tx_unacked is empty before calling
     /**
-     * Helper to retransmit. Calls in every poll conditionally.
-     * Only retransmits the head of the retransmission queue. Retransmitting whole queue is another option.
+     * Helper to retransmit.
+     * Calls in every poll conditionally. Caller should check if tcb.tx_unacked is empty before calling.
+     * Only retransmits the head of the retransmission queue.
+     * TODO enable 3-dup ACK fast retransmission path
      */
     void socket::retransmit_head() {
         // best effort, retry in next poll
