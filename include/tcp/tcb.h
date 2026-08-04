@@ -181,6 +181,7 @@ namespace tcp {
         }
 
         void handle_fin() {
+            LOG_DEBUG("FIN received");
             switch (state) {
                 case fsm::ESTABLISHED:
                     state = fsm::CLOSE_WAIT;
