@@ -115,6 +115,7 @@ namespace adv {
         drain(sock, sess, DRAIN_MS);
     }
 
+    // segment the message in random offsets
     inline void random_frag(tcp::socket& sock, soup::Session& sess, ouch::Application&) {
         if (!login_honest(sock, sess)) { LOG_ERROR("login failed"); return; }
         LOG_INFO("random_frag: 10 orders, random segment boundaries");
