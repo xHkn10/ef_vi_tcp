@@ -104,7 +104,7 @@ namespace adv {
         put_soup_frame(v, soup::UNSEQUENCED_DATA, ouch_payload);
         return v;
     }
-    // A single well-formed order frame, handy as the "clean" baseline to mangle.
+    // A single well-formed order frame
     inline bytes sample_order() {
         const auto o = build_enter_order("token", 70796, 'B', 100, 100'000);
         return build_unsequenced(o);
